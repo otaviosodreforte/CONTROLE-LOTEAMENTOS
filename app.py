@@ -151,15 +151,24 @@ def index():
 def selecionar_loteamento():
     lids = session.get("loteamentos_ids", [])
     tem_admin = "loteamentos_admin" in session.get("permissoes", [])
+    debug_info = {}
     with get_db() as conn:
+        try:
+            debug_info["count_all"] = conn.execute("SELECT COUNT(*) as c FROM loteamentos").fetchone()["c"]
+            debug_info["count_test"] = conn.execute("SELECT COUNT(*) as c FROM information_schema.tables WHERE table_name='loteamentos'").fetchone()["c"]
+        except Exception as e:
+            debug_info["error"] = str(e)
         if tem_admin:
             loteamentos = conn.execute("SELECT * FROM loteamentos ORDER BY nome").fetchall()
+            debug_info["qtd_admin"] = len(loteamentos)
         elif lids:
             placeholders = ",".join("?" for _ in lids)
             loteamentos = conn.execute(f"SELECT * FROM loteamentos WHERE id IN ({placeholders}) ORDER BY nome", lids).fetchall()
+            debug_info["qtd_lids"] = len(loteamentos)
         else:
             loteamentos = []
-    return render_template("selecionar.html", loteamentos=loteamentos, debug_perms=str(dict(session)), debug_qtd=len(loteamentos))
+            debug_info["qtd_else"] = 0
+    return render_template("selecionar.html", loteamentos=loteamentos, debug_perms=str(dict(session)), debug_info=debug_info)
 
 
 @app.route("/selecionar/<int:id>")
