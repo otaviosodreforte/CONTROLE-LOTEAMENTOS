@@ -159,7 +159,7 @@ def selecionar_loteamento():
             loteamentos = conn.execute(f"SELECT * FROM loteamentos WHERE id IN ({placeholders}) ORDER BY nome", lids).fetchall()
         else:
             loteamentos = []
-    return render_template("selecionar.html", loteamentos=loteamentos)
+    return render_template("selecionar.html", loteamentos=loteamentos, debug_perms=str(dict(session)), debug_qtd=len(loteamentos))
 
 
 @app.route("/selecionar/<int:id>")
