@@ -24,11 +24,4 @@
     </div>
     {% endfor %}
 </div>
-<div style="background:#eee;padding:16px;margin-top:20px;font-size:12px;white-space:pre-wrap;font-family:monospace">
-<h3>DEBUG</h3>
-<p>session: {{ debug_perms }}</p>
-<p>tem_admin (template): {{ 'loteamentos_admin' in session.get('permissoes', []) }}</p>
-<p>lids: {{ session.get('loteamentos_ids', []) }}</p>
-<p>debug_info: {{ debug_info }}</p>
-</div>
 {% endblock %}
