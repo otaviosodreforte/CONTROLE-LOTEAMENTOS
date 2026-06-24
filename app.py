@@ -152,12 +152,19 @@ def selecionar_loteamento():
     lids = session.get("loteamentos_ids", [])
     tem_admin = "loteamentos_admin" in session.get("permissoes", [])
     debug_info = {}
+    debug_info["env_DATABASE_URL"] = os.environ.get("DATABASE_URL", "")[:50] if os.environ.get("DATABASE_URL") else "NOT SET"
+    debug_info["env_PGHOST"] = os.environ.get("PGHOST", "NOT SET")
+    debug_info["env_PGPORT"] = os.environ.get("PGPORT", "NOT SET")
+    debug_info["env_PGUSER"] = os.environ.get("PGUSER", "NOT SET")
+    debug_info["env_PGPASSWORD"] = "SET" if os.environ.get("PGPASSWORD") else "NOT SET"
+    debug_info["env_PGDATABASE"] = os.environ.get("PGDATABASE", "NOT SET")
+    from modules.common import USING_PG
+    debug_info["USING_PG"] = USING_PG
     with get_db() as conn:
         try:
             debug_info["count_all"] = conn.execute("SELECT COUNT(*) as c FROM loteamentos").fetchone()["c"]
-            debug_info["count_test"] = conn.execute("SELECT COUNT(*) as c FROM information_schema.tables WHERE table_name='loteamentos'").fetchone()["c"]
         except Exception as e:
-            debug_info["error"] = str(e)
+            debug_info["count_all_error"] = str(e)[:100]
         if tem_admin:
             loteamentos = conn.execute("SELECT * FROM loteamentos ORDER BY nome").fetchall()
             debug_info["qtd_admin"] = len(loteamentos)
