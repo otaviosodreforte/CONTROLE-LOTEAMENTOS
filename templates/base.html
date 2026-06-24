@@ -1,0 +1,117 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block titulo %}Sistema Loteamentos{% endblock %}</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    <script>if (typeof L === 'undefined') document.write('<div style="padding:20px;background:#ffebee;color:#c62828;border-radius:6px;margin:20px"><strong>Erro:</strong> Biblioteca de mapa não carregou. Verifique sua conexão com a internet ou desative bloqueadores.</div>');</script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: system-ui, sans-serif; }
+        body { display: flex; min-height: 100vh; background: #f0f2f5; }
+        nav { width: 240px; background: #1a237e; color: #fff; padding: 20px 0; flex-shrink: 0; }
+        nav h2 { padding: 0 20px 20px; border-bottom: 1px solid rgba(255,255,255,.1); font-size: 18px; }
+        nav .nav-link { display: block; padding: 12px 20px; color: #c5cae9; text-decoration: none; font-size: 14px; transition: .2s; }
+        nav .nav-link:hover, nav .nav-link.ativo { background: rgba(255,255,255,.1); color: #fff; }
+        .nav-group { border-top: 1px solid rgba(255,255,255,.1); padding-top: 8px; margin-top: 8px; }
+        .nav-group .nav-title { padding: 8px 20px 4px; font-size: 11px; text-transform: uppercase; color: #7986cb; letter-spacing: 1px; }
+        .conteudo { flex: 1; padding: 30px; }
+        .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+        .toolbar h1 { font-size: 24px; color: #1a237e; }
+        table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+        th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #e0e0e0; font-size: 14px; }
+        th { background: #f5f5f5; color: #333; font-weight: 600; }
+        tr:hover { background: #fafafa; }
+        .btn { display: inline-block; padding: 8px 16px; border-radius: 6px; text-decoration: none; font-size: 13px; border: none; cursor: pointer; transition: .2s; }
+        .btn:hover { filter: brightness(1.1); }
+        .novo { background: #2e7d32; color: #fff; }
+        .editar { background: #1565c0; color: #fff; }
+        .cancelar { background: #757575; color: #fff; }
+        .excluir { background: #c62828; color: #fff; }
+        .form { background: #fff; padding: 24px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.1); max-width: 600px; }
+        .form label { display: block; margin-bottom: 4px; font-weight: 600; font-size: 13px; color: #333; }
+        .form input, .form select, .form textarea { width: 100%; padding: 10px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; margin-bottom: 16px; }
+        .form textarea { min-height: 80px; resize: vertical; }
+        .form-actions { display: flex; gap: 10px; margin-top: 8px; }
+        .erro { background: #ffebee; color: #c62828; padding: 12px; border-radius: 6px; margin-bottom: 16px; font-size: 14px; }
+        .flash { background: #e8f5e9; color: #2e7d32; padding: 12px; border-radius: 6px; margin-bottom: 16px; }
+        .vazio { text-align: center; color: #999; padding: 30px !important; font-style: italic; }
+        .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+        .card { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+        .card h3 { font-size: 13px; color: #666; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .5px; }
+        .card .valor { font-size: 28px; font-weight: 700; color: #1a237e; }
+        .card .valor.verde { color: #2e7d32; }
+        .card .valor.azul { color: #1565c0; }
+        .card .valor.laranja { color: #e65100; }
+        .card .valor.vermelho { color: #c62828; }
+        .busca { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; align-items: end; }
+        .busca input, .busca select { padding: 8px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; }
+        .busca button { padding: 8px 16px; }
+        #map { height: 500px; border-radius: 8px; margin-top: 16px; }
+        @media (max-width: 768px) { body { flex-direction: column; } nav { width: 100%; } }
+        .checkbox-group { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+        .checkbox-group label { display: flex; align-items: center; gap: 6px; font-weight: 400; font-size: 13px; }
+        .checkbox-group input[type="checkbox"] { width: auto; margin: 0; }
+    </style>
+</head>
+<body>
+    <nav>
+        <h2>🏗️ Loteamentos</h2>
+        {% if loteamento_ativo %}
+        <div class="nav-group" style="background:rgba(255,255,255,.08);margin:0 10px 8px;border-radius:6px;padding:8px 10px">
+            <div style="font-size:11px;color:#7986cb;text-transform:uppercase;letter-spacing:1px">Loteamento Ativo</div>
+            <div style="font-weight:700;font-size:14px;margin:4px 0">{{ loteamento_ativo.nome }}</div>
+            <a href="{{ url_for('selecionar_loteamento') }}" style="font-size:12px;color:#90caf9">🔄 Trocar</a>
+        </div>
+        <a href="{{ url_for('index') }}" class="nav-link">📊 Dashboard</a>
+        {% if loteamento_ativo %}
+        <a href="{{ url_for('loteamentos_mapa', id=loteamento_ativo.id) }}" class="nav-link">🗺️ Mapa Interativo</a>
+        {% endif %}
+        <div class="nav-group">
+            <div class="nav-title">Cadastro</div>
+            <a href="{{ url_for('loteamentos_lista') }}" class="nav-link">🏘️ Loteamentos</a>
+            <a href="{{ url_for('quadras_lista') }}" class="nav-link">🧱 Quadras</a>
+            <a href="{{ url_for('lotes_lista') }}" class="nav-link">📐 Lotes</a>
+            <a href="{{ url_for('pessoas_lista') }}" class="nav-link">👤 Pessoas</a>
+            <a href="{{ url_for('formas_pagamento_lista') }}" class="nav-link">💳 Formas Pagamento</a>
+        </div>
+        <div class="nav-group">
+            <div class="nav-title">Movimentação</div>
+            <a href="{{ url_for('permutas_lista') }}" class="nav-link">🔄 Permutas</a>
+            <a href="{{ url_for('vendas_lista') }}" class="nav-link">💰 Vendas</a>
+            <a href="{{ url_for('pagamentos_lista') }}" class="nav-link">📆 Pagamentos</a>
+        </div>
+        <div class="nav-group">
+            <div class="nav-title">Relatórios</div>
+            <a href="{{ url_for('relatorios_quadras') }}" class="nav-link">📋 Por Quadra</a>
+            <a href="{{ url_for('relatorios_pessoa_selecionar') }}" class="nav-link">👤 Por Pessoa</a>
+        </div>
+        {% else %}
+        <div style="padding:10px 20px;font-size:13px;color:#c5cae9">Nenhum loteamento selecionado.</div>
+        {% endif %}
+        {% if 'usuarios' in session.get('permissoes', []) %}
+        <div class="nav-group">
+            <div class="nav-title">Administração</div>
+            <a href="{{ url_for('usuarios_lista') }}" class="nav-link">👥 Usuários</a>
+        </div>
+        {% endif %}
+        <div class="nav-group" style="margin-top:20px;border-top:1px solid rgba(255,255,255,.1);padding-top:16px">
+            <span style="padding:0 20px;font-size:13px;color:#c5cae9">{{ session.usuario_nome }}</span>
+            <a href="{{ url_for('logout') }}" class="nav-link">🚪 Sair</a>
+        </div>
+    </nav>
+    <div class="conteudo">
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}
+        {% for msg in messages %}
+        <div class="flash">{{ msg }}</div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+        {% block conteudo %}{% endblock %}
+    </div>
+</body>
+</html>

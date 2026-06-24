@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block titulo %}Relatório por Quadras{% endblock %}
+{% block conteudo %}
+<div class="toolbar">
+    <h1>Relatório por Quadras</h1>
+    <a href="javascript:window.print()" class="btn editar">🖨️ Imprimir</a>
+</div>
+<p style="margin-bottom:20px;color:#666">{{ loteamento.nome }}</p>
+
+{% for item in quadras_data %}
+{% set q = item.quadra %}
+<div style="background:#fff;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.1);margin-bottom:20px;padding:20px;page-break-inside:avoid">
+    <h2 style="color:#1a237e;margin-bottom:8px">{{ q.identificacao }}</h2>
+    <div class="cards" style="margin-bottom:12px">
+        <div class="card"><h3>Total Lotes</h3><div class="valor">{{ q.total_lotes }}</div></div>
+        <div class="card"><h3>Disponíveis</h3><div class="valor verde">{{ q.disponiveis }}</div></div>
+        <div class="card"><h3>Vendidos</h3><div class="valor azul">{{ q.vendidos }}</div></div>
+        <div class="card"><h3>Permutados</h3><div class="valor laranja">{{ q.permutados }}</div></div>
+        <div class="card"><h3>Área Total</h3><div class="valor vermelho">{{ "%.2f"|format(q.area_total) }} m²</div></div>
+    </div>
+    {% if q.rua_norte or q.rua_sul or q.rua_leste or q.rua_oeste %}
+    <p style="font-size:13px;color:#666;margin-bottom:10px">
+        <strong>Confrontações:</strong>
+        N: {{ q.rua_norte or "—" }},
+        S: {{ q.rua_sul or "—" }},
+        L: {{ q.rua_leste or "—" }},
+        O: {{ q.rua_oeste or "—" }}
+    </p>
+    {% endif %}
+    <table>
+        <thead><tr><th>Lote</th><th>Frente (m)</th><th>Fundo (m)</th><th>Área (m²)</th><th>Status</th><th>Dono</th><th>CPF</th><th>Contato</th></tr></thead>
+        <tbody>
+            {% for l in item.lotes %}
+            <tr>
+                <td>{{ l.numero or "—" }}</td>
+                <td>{{ "%.2f"|format(l.tamanho_frente) }}</td>
+                <td>{{ "%.2f"|format(l.tamanho_fundo) }}</td>
+                <td>{{ "%.2f"|format(l.tamanho_frente * l.tamanho_fundo) }}</td>
+                <td>{{ l.status }}</td>
+                <td>{{ l.dono_nome or "—" }}</td>
+                <td>{{ l.dono_cpf or "—" }}</td>
+                <td>{{ l.dono_contato or "—" }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="8" class="vazio">Nenhum lote nesta quadra.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="vazio" style="padding:40px;text-align:center;color:#999">Nenhuma quadra encontrada neste loteamento.</div>
+{% endfor %}
+{% endblock %}

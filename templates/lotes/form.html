@@ -1,0 +1,127 @@
+﻿{% extends "base.html" %}
+{% block titulo %}{% if registro %}Editar{% else %}Novo{% endif %} Lote{% endblock %}
+{% block conteudo %}
+<h1>{% if registro %}Editar{% else %}Novo{% endif %} Lote</h1>
+<form method="POST" class="form" style="margin-top:16px;max-width:800px">
+    {% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div>
+            <label>Quadra *</label>
+            <select name="quadra_id" required>
+                <option value="">Selecione...</option>
+                {% for q in quadras %}
+                <option value="{{ q.id }}" {{ 'selected' if registro and registro.quadra_id==q.id }}>{{ q.identificacao }}</option>
+                {% endfor %}
+            </select>
+            <label>Número do Lote</label>
+            <input type="text" name="numero" value="{{ registro.numero if registro else '' }}">
+            <label>Tamanho Frente (m)</label>
+            <input type="number" step="0.01" name="tamanho_frente" value="{{ registro.tamanho_frente if registro else 0 }}">
+            <label>Tamanho Fundo (m)</label>
+            <input type="number" step="0.01" name="tamanho_fundo" value="{{ registro.tamanho_fundo if registro else 0 }}">
+            <p style="margin:-10px 0 16px;font-size:13px;color:#666">Área total calculada: <span id="area_calc">0</span> m²</p>
+            <label>Dono (Pessoa Cadastrada)</label>
+            <select name="dono_pessoa_id" onchange="preencherDadosPessoa(this)">
+                <option value="">--- Selecione ou digite manualmente ---</option>
+                {% for p in pessoas %}
+                <option value="{{ p.id }}" data-nome="{{ p.nome }}" data-cpf="{{ p.cpf }}" data-contato="{{ p.contato }}" {{ 'selected' if registro and registro.dono_pessoa_id==p.id }}>{{ p.nome }} ({{ p.cpf }})</option>
+                {% endfor %}
+            </select>
+            <a href="{{ url_for('pessoas_novo') }}" target="_blank" class="btn editar" style="font-size:12px;margin-bottom:16px;display:inline-block">+ Nova Pessoa</a>
+            <label>Nome do Dono</label>
+            <input type="text" name="dono_nome" id="dono_nome" value="{{ registro.dono_nome if registro else '' }}">
+            <label>CPF do Dono</label>
+            <input type="text" name="dono_cpf" id="dono_cpf" value="{{ registro.dono_cpf if registro else '' }}">
+            <label>Contato do Dono</label>
+            <input type="text" name="dono_contato" id="dono_contato" value="{{ registro.dono_contato if registro else '' }}">
+            {% if registro %}
+            <label>Status</label>
+            <select name="status">
+                <option value="disponivel" {{ 'selected' if registro.status=='disponivel' }}>Disponível</option>
+                <option value="vendido" {{ 'selected' if registro.status=='vendido' }}>Vendido</option>
+                <option value="permutado" {{ 'selected' if registro.status=='permutado' }}>Permutado</option>
+            </select>
+            <label>Lotes Limítrofes</label>
+            <select name="lotes_limitrofes" style="height:100px" multiple>
+                {% for l in todos_lotes %}
+                <option value="{{ l.id }}" {{ 'selected' if limitrofes_ids and l.id|string in limitrofes_ids }}>{{ l.quadra_nome }} - Lote {{ l.numero }}</option>
+                {% endfor %}
+            </select>
+            {% endif %}
+        </div>
+        <div>
+            <label>Desenhe o polígono do lote no mapa</label>
+            <input type="hidden" name="polygon_coords" id="polygon_coords" value="{{ registro.polygon_coords or '[]' }}">
+            <div id="map" style="height:400px;border-radius:6px;margin-bottom:8px"></div>
+            <button type="button" class="btn cancelar" onclick="limparPoligono()" style="font-size:12px">🗑️ Limpar polígono</button>
+        </div>
+    </div>
+    <div class="form-actions" style="margin-top:16px">
+        <button class="btn novo" type="submit">Salvar</button>
+        <a href="{{ url_for('lotes_lista') }}" class="btn cancelar">Cancelar</a>
+    </div>
+</form>
+<script>
+    function preencherDadosPessoa(sel) {
+        const opt = sel.options[sel.selectedIndex];
+        document.getElementById("dono_nome").value = opt.dataset.nome || "";
+        document.getElementById("dono_cpf").value = opt.dataset.cpf || "";
+        document.getElementById("dono_contato").value = opt.dataset.contato || "";
+    }
+    document.querySelector("[name=tamanho_frente]")?.addEventListener("input", calc);
+    document.querySelector("[name=tamanho_fundo]")?.addEventListener("input", calc);
+    function calc() {
+        const f = parseFloat(document.querySelector("[name=tamanho_frente]")?.value || 0);
+        const fu = parseFloat(document.querySelector("[name=tamanho_fundo]")?.value || 0);
+        document.getElementById("area_calc").textContent = (f * fu).toFixed(2);
+    }
+    calc();
+
+    const coordsIniciais = {{ (registro.polygon_coords or '[]') | safe }};
+    const lat = {{ loteamentos[0].lat if loteamentos and loteamentos[0] else -11.81 }};
+    const lng = {{ loteamentos[0].lng if loteamentos and loteamentos[0] else -42.06 }};
+
+    const map = L.map("map").setView([lat, lng], 18);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "&copy; OSM" }).addTo(map);
+
+    const drawnItems = new L.FeatureGroup();
+    map.addLayer(drawnItems);
+
+    const drawControl = new L.Control.Draw({
+        edit: { featureGroup: drawnItems },
+        draw: {
+            polygon: { shapeOptions: { color: "#2e7d32", weight: 2, fillOpacity: 0.2 } },
+            rectangle: false, circle: false, circlemarker: false, marker: false, polyline: false
+        }
+    });
+    map.addControl(drawControl);
+
+    if (coordsIniciais.length > 0) {
+        const poly = L.polygon(coordsIniciais, { color: "#2e7d32", weight: 2, fillOpacity: 0.2 });
+        drawnItems.addLayer(poly);
+        map.fitBounds(poly.getBounds().pad(0.3));
+    }
+
+    map.on(L.Draw.Event.CREATED, function(e) {
+        drawnItems.clearLayers();
+        drawnItems.addLayer(e.layer);
+        document.getElementById("polygon_coords").value = JSON.stringify(e.layer.getLatLngs()[0].map(p => [p.lat, p.lng]));
+    });
+    map.on(L.Draw.Event.EDITED, function() {
+        const layers = [];
+        drawnItems.eachLayer(l => layers.push(l));
+        if (layers.length > 0) {
+            const pts = layers[0].getLatLngs()[0].map(p => [p.lat, p.lng]);
+            document.getElementById("polygon_coords").value = JSON.stringify(pts);
+        }
+    });
+    map.on(L.Draw.Event.DELETED, function() {
+        document.getElementById("polygon_coords").value = "[]";
+    });
+
+    function limparPoligono() {
+        drawnItems.clearLayers();
+        document.getElementById("polygon_coords").value = "[]";
+    }
+</script>
+{% endblock %}

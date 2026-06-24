@@ -1,0 +1,7 @@
+﻿flask>=3.0
+reportlab
+openpyxl
+werkzeug
+waitress
+python-dotenv
+psycopg2-binary

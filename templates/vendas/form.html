@@ -1,0 +1,63 @@
+﻿{% extends "base.html" %}
+{% block titulo %}{% if registro %}Editar{% else %}Nova{% endif %} Venda{% endblock %}
+{% block conteudo %}
+<h1>{% if registro %}Editar{% else %}Nova{% endif %} Venda</h1>
+<form method="POST" class="form" style="margin-top:16px">
+    {% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
+    {% if not registro %}
+    <label>Lote (apenas disponíveis) *</label>
+    <select name="lote_id" required>
+        <option value="">Selecione...</option>
+        {% for l in lotes %}
+        <option value="{{ l.id }}">{{ l.quadra_nome }} - Lote {{ l.numero }}</option>
+        {% endfor %}
+    </select>
+    {% endif %}
+    <label>Data</label>
+    <input type="date" name="data" value="{{ registro.data if registro else '' }}">
+    <label>Vendedor (Pessoa Cadastrada)</label>
+    <select name="vendedor_pessoa_id" onchange="document.getElementById('vendedor_nome').value=this.options[this.selectedIndex].dataset.nome||'';document.getElementById('vendedor_cpf').value=this.options[this.selectedIndex].dataset.cpf||'';document.getElementById('vendedor_contato').value=this.options[this.selectedIndex].dataset.contato||''">
+        <option value="">--- Selecione ou digite manualmente ---</option>
+        {% for p in pessoas %}
+        <option value="{{ p.id }}" data-nome="{{ p.nome }}" data-cpf="{{ p.cpf }}" data-contato="{{ p.contato }}" {{ 'selected' if registro and registro.vendedor_pessoa_id==p.id }}>{{ p.nome }} ({{ p.cpf }})</option>
+        {% endfor %}
+    </select>
+    <a href="{{ url_for('pessoas_novo') }}" target="_blank" class="btn editar" style="font-size:12px;margin-bottom:16px;display:inline-block">+ Nova Pessoa</a>
+    <label>Vendedor *</label>
+    <input type="text" name="vendedor_nome" id="vendedor_nome" value="{{ registro.vendedor_nome if registro else '' }}" required>
+    <label>CPF Vendedor</label>
+    <input type="text" name="vendedor_cpf" id="vendedor_cpf" value="{{ registro.vendedor_cpf if registro else '' }}">
+    <label>Contato Vendedor</label>
+    <input type="text" name="vendedor_contato" id="vendedor_contato" value="{{ registro.vendedor_contato if registro else '' }}">
+    <label>Comprador (Pessoa Cadastrada)</label>
+    <select name="comprador_pessoa_id" onchange="document.getElementById('comprador_nome').value=this.options[this.selectedIndex].dataset.nome||'';document.getElementById('comprador_cpf').value=this.options[this.selectedIndex].dataset.cpf||'';document.getElementById('comprador_contato').value=this.options[this.selectedIndex].dataset.contato||''">
+        <option value="">--- Selecione ou digite manualmente ---</option>
+        {% for p in pessoas %}
+        <option value="{{ p.id }}" data-nome="{{ p.nome }}" data-cpf="{{ p.cpf }}" data-contato="{{ p.contato }}" {{ 'selected' if registro and registro.comprador_pessoa_id==p.id }}>{{ p.nome }} ({{ p.cpf }})</option>
+        {% endfor %}
+    </select>
+    <label>Comprador *</label>
+    <input type="text" name="comprador_nome" id="comprador_nome" value="{{ registro.comprador_nome if registro else '' }}" required>
+    <label>CPF Comprador</label>
+    <input type="text" name="comprador_cpf" id="comprador_cpf" value="{{ registro.comprador_cpf if registro else '' }}">
+    <label>Contato Comprador</label>
+    <input type="text" name="comprador_contato" id="comprador_contato" value="{{ registro.comprador_contato if registro else '' }}">
+    <label>Valor Total (R$)</label>
+    <input type="number" step="0.01" name="valor_total" value="{{ registro.valor_total if registro else 0 }}">
+    <label>Forma de Pagamento</label>
+    <select name="forma_pagamento_id">
+        <option value="">Selecione...</option>
+        {% for f in formas %}
+        <option value="{{ f.id }}" {{ 'selected' if registro and registro.forma_pagamento_id==f.id }}>{{ f.nome }}</option>
+        {% endfor %}
+    </select>
+    <label>Número de Parcelas</label>
+    <input type="number" name="numero_parcelas" value="{{ registro.numero_parcelas if registro else 1 }}" min="1" max="120">
+    <label>Observação</label>
+    <textarea name="observacao">{{ registro.observacao if registro else '' }}</textarea>
+    <div class="form-actions">
+        <button class="btn novo" type="submit">Salvar</button>
+        <a href="{{ url_for('vendas_lista') }}" class="btn cancelar">Cancelar</a>
+    </div>
+</form>
+{% endblock %}

@@ -1,0 +1,508 @@
+﻿{% extends "base.html" %}
+{% block titulo %}Mapa Interativo - {{ loteamento.nome if loteamento else "Loteamento" }}{% endblock %}
+{% block conteudo %}
+<style>
+.leaflet-tooltip.quadra-label {
+    background: rgba(255, 255, 255, 0.85);
+    border: none;
+    box-shadow: none;
+    font-size: 14px;
+    font-weight: 900;
+    color: #1a237e;
+    padding: 3px 8px;
+    border-radius: 4px;
+}
+.lote-label-icon {
+    background: rgba(255, 255, 255, 0.8) !important;
+    border: none !important;
+    font-size: 7px;
+    font-weight: 700;
+    color: #1a237e;
+    text-align: center;
+    line-height: 1.15;
+    padding: 1px 2px;
+    border-radius: 2px;
+    white-space: nowrap;
+    transform: translate(-50%, -50%);
+    z-index: 10000 !important;
+}
+</style>
+<div class="toolbar">
+    <h1>🗺️ {{ loteamento.nome if loteamento else "Loteamento" }}</h1>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <a href="{{ url_for('loteamentos_lista') }}" class="btn cancelar">← Voltar</a>
+        <button class="btn editar" onclick="salvarTudo()">💾 Recarregar</button>
+        <button id="btnMover" class="btn" onclick="toggleMover()" style="background:#ff9800;color:#fff">✋ Mover</button>
+        <button id="btnRot" class="btn" onclick="toggleRotacionar()" style="background:#9c27b0;color:#fff">🔄 Girar</button>
+        <button id="btnPonto" class="btn" onclick="togglePonto()" style="background:#2196f3;color:#fff">📌 Marcação</button>
+    </div>
+</div>
+<div id="statusBar" style="display:none;padding:10px 16px;border-radius:6px;margin-bottom:12px;font-size:14px"></div>
+<div id="map" style="height:75vh;border-radius:8px"></div>
+<div id="mapFallback" style="display:none;padding:40px;text-align:center;background:#fff3e0;border-radius:8px;margin:20px 0">
+    <h2 style="color:#e65100">🗺️ Mapa não disponível</h2>
+    <p style="color:#666;margin-top:8px">A biblioteca de mapas não carregou. Pode ser bloqueador de anúncios ou firewall.</p>
+    <p style="color:#666">Tente: <strong>Ctrl+F5</strong> para recarregar, ou desative bloqueadores para este site.</p>
+</div>
+<div style="margin-top:10px;display:flex;gap:16px;font-size:13px;color:#666;flex-wrap:wrap">
+    <span>🟩 <strong>Disponível</strong></span>
+    <span>🟥 <strong>Vendido</strong></span>
+    <span>🟧 <strong>Permutado</strong></span>
+    <span>🔵 <strong>Quadra</strong></span>
+    <span style="margin-left:auto">Use a toolbar para desenhar quadras e lotes. Clique num polígono para editar/excluir.</span>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    if (typeof L === "undefined") {
+        document.getElementById("map").style.display = "none";
+        document.getElementById("mapFallback").style.display = "block";
+        return;
+    }
+    try {
+        const loteamentoId = {{ loteamento.id if loteamento else 0 }};
+        const map = L.map("map").setView([{{ loteamento.lat if loteamento else -11.81 }}, {{ loteamento.lng if loteamento else -42.06 }}], 17);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            attribution: '&copy; <a href="https://openstreetmap.org">OSM</a>'
+        }).addTo(map);
+
+        const coresStatus = { "disponivel": "#4caf50", "vendido": "#f44336", "permutado": "#ff9800" };
+        const quadraLayer = L.featureGroup().addTo(map);
+        const loteLayer = L.featureGroup().addTo(map);
+        const pontoLayer = L.featureGroup().addTo(map);
+
+        let drawControl = null;
+        if (typeof L.Control.Draw !== "undefined") {
+            const drawnItems = L.featureGroup().addTo(map);
+            drawControl = new L.Control.Draw({
+                edit: { featureGroup: drawnItems },
+                draw: {
+                    polygon: { shapeOptions: { color: "#1565c0", weight: 3, fillOpacity: 0.15 }, title: "Desenhar quadra" },
+                    rectangle: false, circle: false, circlemarker: false, marker: false, polyline: false
+                }
+            });
+            map.addControl(drawControl);
+        }
+
+        const layerControl = L.control.layers(null, {
+            "Quadras": quadraLayer,
+            "Lotes": loteLayer,
+            "Marcações": pontoLayer
+        }).addTo(map);
+
+        let dados = null;
+
+        function carregarDados(callback) {
+            fetch("/api/mapa/dados")
+                .then(r => r.json())
+                .then(d => { dados = d; callback(); })
+                .catch(() => {});
+        }
+
+        function rotuloLetra(nome) {
+            var partes = (nome || "").trim().split(" ");
+            return partes[partes.length - 1] || "";
+        }
+
+        function renderizarQuadras() {
+            quadraLayer.clearLayers();
+            if (!dados) return;
+            dados.quadras.forEach(q => {
+                const coords = JSON.parse(q.polygon_coords || "[]");
+                if (coords.length < 3) return;
+                const letra = rotuloLetra(q.identificacao);
+                const poly = L.polygon(coords, {
+                    color: "#1565c0", weight: 2, dashArray: "8 6",
+                    fillColor: "#1565c0", fillOpacity: 0.08,
+                    id: q.id, tipo: "quadra"
+                }).addTo(quadraLayer);
+                poly.bindPopup(`<b>${q.identificacao}</b><br>Lotes: ${q.total_lotes || 0}<br>Disponíveis: ${q.disponiveis || 0} | Vendidos: ${q.vendidos || 0}<br><a href="{{ url_for('quadras_editar', id=0) }}" target="_blank">✏️ Editar quadra</a>`.replace("/quadras/editar/0", "/quadras/editar/" + q.id));
+                poly.bindTooltip("(" + letra + ")", { permanent: true, direction: "center", className: "quadra-label" });
+                poly.on("click", function() { this.openPopup(); });
+            });
+        }
+
+        function renderizarLotes() {
+            loteLayer.clearLayers();
+            if (!dados) return;
+            dados.lotes.forEach(l => {
+                const coords = JSON.parse(l.polygon_coords || "[]");
+                if (coords.length < 3) return;
+                const cor = coresStatus[l.status] || "#999";
+                const area = (parseFloat(l.tamanho_frente) || 0) * (parseFloat(l.tamanho_fundo) || 0);
+                const letra = rotuloLetra(l.quadra_nome);
+                var numLabel = (l.numero || "").replace(/^0+/, "");
+                var refLabel = letra + numLabel;
+                if (l.dono_ref) refLabel += "<br>" + l.dono_ref;
+                const poly = L.polygon(coords, {
+                    color: cor, weight: 2, fillColor: cor, fillOpacity: 0.25,
+                    id: l.id, tipo: "lote"
+                }).addTo(loteLayer);
+                poly.bindPopup(`<b>Lote ${l.numero || "—"}</b><br>Quadra: ${l.quadra_nome}<br>${area > 0 ? "Área: " + area.toFixed(2) + " m²<br>" : ""}Status: <strong>${l.status}</strong><br>Dono: ${l.dono_nome || "—"}<br><a href="{{ url_for('lotes_editar', id=0) }}" target="_blank">✏️ Editar lote</a>`.replace("/lotes/editar/0", "/lotes/editar/" + l.id));
+                poly.on("click", function() { this.openPopup(); });
+                try {
+                    var centro = poly.getBounds().getCenter();
+                    var ic = L.divIcon({ className: "lote-label-icon", html: refLabel, iconSize: [1, 1], iconAnchor: [10, 8] });
+                    L.marker(centro, { icon: ic, interactive: false }).addTo(loteLayer);
+                } catch(e) {}
+            });
+        }
+
+        if (drawControl) {
+            map.on(L.Draw.Event.CREATED, function(e) {
+                const layer = e.layer;
+                const pts = layer.getLatLngs()[0].map(p => [p.lat, p.lng]);
+                const tipo = prompt("Isto é uma (Q)uadra ou (L)ote?").toUpperCase();
+                if (tipo === "Q") {
+                    fetch("/api/quadras/nova", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ polygon_coords: pts }) })
+                        .then(r => r.json()).then(q => { carregarDados(function() { renderizarQuadras(); renderizarLotes(); }); })
+                        .catch(function(){});
+                } else if (tipo === "L") {
+                    fetch("/api/mapa/dados").then(r => r.json()).then(d => {
+                        let quadraId = null;
+                        const centroid = [(pts.reduce(function(s,p){return s+p[0];},0)/pts.length), (pts.reduce(function(s,p){return s+p[1];},0)/pts.length)];
+                        d.quadras.forEach(function(q) {
+                            const qc = JSON.parse(q.polygon_coords || "[]");
+                            if (qc.length >= 3 && pontoEmPoligono(centroid, qc)) quadraId = q.id;
+                        });
+                        if (!quadraId) quadraId = parseInt(prompt("ID da quadra:") || "0");
+                        if (quadraId) {
+                            fetch("/api/lotes/novo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ quadra_id: quadraId, polygon_coords: pts }) })
+                                .then(function(){ carregarDados(function(){ renderizarLotes(); renderizarQuadras(); }); });
+                        }
+                    });
+                }
+            });
+            map.on(L.Draw.Event.EDITED, function() {
+                const layers = [];
+                drawnItems.eachLayer(function(l){ layers.push(l); });
+                layers.forEach(function(layer) {
+                    const tipo = layer.options.tipo;
+                    const id = layer.options.id;
+                    const pts = layer.getLatLngs()[0].map(function(p){ return [p.lat, p.lng]; });
+                    if (tipo === "quadra") fetch("/api/quadras/" + id + "/polygon", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ polygon_coords: pts }) });
+                    else if (tipo === "lote") fetch("/api/lotes/" + id + "/polygon", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ polygon_coords: pts }) });
+                });
+            });
+            map.on(L.Draw.Event.DELETED, function() {});
+        }
+
+        function pontoEmPoligono(ponto, vs) {
+            let x = ponto[0], y = ponto[1], inside = false;
+            for (let i = 0, j = vs.length - 1; i < vs.length; j = i++) {
+                const xi = vs[i][0], yi = vs[i][1], xj = vs[j][0], yj = vs[j][1];
+                if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+            }
+            return inside;
+        }
+
+        carregarDados(function() {
+            renderizarQuadras();
+            renderizarLotes();
+            carregarPontos();
+            if (quadraLayer.getLayers().length > 0 || loteLayer.getLayers().length > 0) {
+                const allBounds = L.featureGroup([quadraLayer, loteLayer]).getBounds();
+                if (allBounds.isValid()) map.fitBounds(allBounds.pad(0.2));
+            }
+        });
+
+        window.mostrarStatus = function(msg, tipo) {
+            const bar = document.getElementById("statusBar");
+            bar.style.display = "block";
+            bar.textContent = msg;
+            bar.className = tipo === "erro" ? "erro" : "flash";
+            setTimeout(() => { bar.style.display = "none"; }, 5000);
+        };
+        window.salvarTudo = function() { carregarDados(function() { renderizarQuadras(); renderizarLotes(); }); carregarPontos(); };
+
+        // ─── Mover Quadra (via marcador arrastavel) ─────────────
+        let moverAtivo = false;
+        let moverMarker = null;
+        let moverLayer = null;
+        var moverOrigCoords = null;
+        var moverCentro = null;
+
+        function prepararMover() {
+            quadraLayer.eachLayer(function(layer) {
+                if (layer.options.tipo !== "quadra") return;
+                moverLayer = layer;
+                moverOrigCoords = layer.getLatLngs()[0].map(function(p) { return [p.lat, p.lng]; });
+                var bounds = layer.getBounds();
+                moverCentro = bounds.getCenter();
+                layer.setStyle({ color: "#ff9800", weight: 4, dashArray: "" });
+                if (moverMarker) map.removeLayer(moverMarker);
+                moverMarker = L.marker(moverCentro, {
+                    draggable: true,
+                    zIndexOffset: 10000,
+                    title: "Arraste para mover a quadra"
+                }).addTo(map);
+                moverMarker.bindPopup("Arraste este marcador para mover a quadra").openPopup();
+                moverMarker.on("drag", function(e) {
+                    var dlat = e.target.getLatLng().lat - moverCentro.lat;
+                    var dlng = e.target.getLatLng().lng - moverCentro.lng;
+                    var nc = moverOrigCoords.map(function(p) { return [p[0] + dlat, p[1] + dlng]; });
+                    moverLayer.setLatLngs([nc]);
+                });
+                moverMarker.on("dragend", function(e) {
+                    var dlat = e.target.getLatLng().lat - moverCentro.lat;
+                    var dlng = e.target.getLatLng().lng - moverCentro.lng;
+                    if (Math.abs(dlat) < 0.000001 && Math.abs(dlng) < 0.000001) return;
+                    fetch("/api/quadras/" + moverLayer.options.id + "/mover", {
+                        method: "PUT",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ dlat: dlat, dlng: dlng })
+                    })
+                    .then(function(r) { return r.json(); })
+                    .then(function() {
+                        mostrarStatus("Quadra movida!", "sucesso");
+                        carregarDados(function() {
+                            renderizarQuadras();
+                            renderizarLotes();
+                            if (moverAtivo) setTimeout(prepararMover, 50);
+                        });
+                    })
+                    .catch(function() { mostrarStatus("Erro ao mover", "erro"); });
+                });
+            });
+        }
+
+        function limparMover() {
+            if (moverMarker) { map.removeLayer(moverMarker); moverMarker = null; }
+            if (moverLayer) {
+                moverLayer.setStyle({ color: "#1565c0", weight: 2, dashArray: "8 6" });
+                moverLayer = null;
+            }
+            moverOrigCoords = null;
+            moverCentro = null;
+        }
+
+        window.toggleMover = function() {
+            moverAtivo = !moverAtivo;
+            var btn = document.getElementById("btnMover");
+            if (moverAtivo) {
+                if (rotAtivo) toggleRotacionar();
+                if (pontoAtivo) togglePonto();
+                btn.style.background = "#f44336";
+                btn.textContent = "🔒 Travar";
+                if (drawControl) map.removeControl(drawControl);
+                setTimeout(prepararMover, 100);
+            } else {
+                btn.style.background = "#ff9800";
+                btn.textContent = "✋ Mover";
+                limparMover();
+                if (drawControl) map.addControl(drawControl);
+            }
+        };
+
+        // ─── Girar Quadra ───────────────────────────────────────
+        var rotAtivo = false;
+        var rotMarker = null, rotLine = null, rotLayer = null, rotCentro = null;
+        var rotOrigCoords = null, rotAngIni = null;
+        var M_LAT = 111000, M_LNG = 108660;
+
+        function prepararRotacionar() {
+            quadraLayer.eachLayer(function(layer) {
+                if (layer.options.tipo !== "quadra") return;
+                rotLayer = layer;
+                rotOrigCoords = layer.getLatLngs()[0].map(function(p) { return [p.lat, p.lng]; });
+                var bounds = layer.getBounds();
+                rotCentro = bounds.getCenter();
+                var maxDist = 0, farthest = null;
+                rotOrigCoords.forEach(function(p) {
+                    var d = map.distance(L.latLng(p[0], p[1]), rotCentro);
+                    if (d > maxDist) { maxDist = d; farthest = [p[0], p[1]]; }
+                });
+                if (!farthest) return;
+                rotAngIni = Math.atan2((farthest[1] - rotCentro.lng) * M_LNG, (farthest[0] - rotCentro.lat) * M_LAT);
+                rotMarker = L.marker(farthest, { draggable: true, zIndexOffset: 30000 }).addTo(map);
+                rotMarker.bindPopup("Arraste para girar").openPopup();
+                rotLine = L.polyline([rotCentro, farthest], { color: "#9c27b0", weight: 2, dashArray: "4 4" }).addTo(map);
+                rotMarker.on("drag", function(e) {
+                    var pos = e.target.getLatLng();
+                    var ang = Math.atan2((pos.lng - rotCentro.lng) * M_LNG, (pos.lat - rotCentro.lat) * M_LAT);
+                    var diff = ang - rotAngIni;
+                    var cosA = Math.cos(diff), sinA = Math.sin(diff);
+                    var nc = rotOrigCoords.map(function(p) {
+                        var dy = (p[0] - rotCentro.lat) * M_LAT;
+                        var dx = (p[1] - rotCentro.lng) * M_LNG;
+                        return [rotCentro.lat + (dx * sinA + dy * cosA) / M_LAT, rotCentro.lng + (dx * cosA - dy * sinA) / M_LNG];
+                    });
+                    rotLayer.setLatLngs([nc]);
+                    rotLine.setLatLngs([rotCentro, pos]);
+                });
+                rotMarker.on("dragend", function(e) {
+                    var pos = e.target.getLatLng();
+                    var ang = Math.atan2((pos.lng - rotCentro.lng) * M_LNG, (pos.lat - rotCentro.lat) * M_LAT);
+                    var diffDeg = (ang - rotAngIni) * 180 / Math.PI;
+                    if (Math.abs(diffDeg) < 0.5) return;
+                    fetch("/api/quadras/" + rotLayer.options.id + "/rotacionar", {
+                        method: "PUT", headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ angulo: diffDeg })
+                    })
+                    .then(function(r) {
+                        if (!r.ok) throw new Error(r.status + " " + r.statusText);
+                        return r.json();
+                    })
+                    .then(function(d) {
+                        if (d.erro) throw new Error(d.erro);
+                        mostrarStatus("Quadra rotacionada! " + d.atualizados + " poligonos.", "sucesso");
+                        carregarDados(function() {
+                            renderizarQuadras();
+                            renderizarLotes();
+                            if (rotAtivo) setTimeout(prepararRotacionar, 50);
+                        });
+                    })
+                    .catch(function(err) { mostrarStatus("Erro: " + err.message, "erro"); });
+                });
+            });
+        }
+
+        function limparRotacionar() {
+            if (rotMarker) { map.removeLayer(rotMarker); rotMarker = null; }
+            if (rotLine) { map.removeLayer(rotLine); rotLine = null; }
+            if (rotLayer) { rotLayer.setStyle({ color: "#1565c0", weight: 2, dashArray: "8 6" }); rotLayer = null; }
+            rotOrigCoords = null; rotCentro = null; rotAngIni = null;
+        }
+
+        // ─── Pontos / Marcacoes ──────────────────────────────────
+        var pontos = [];
+        var pontoAtivo = false;
+        var pontoIconePadrao = "📍";
+        var pontoCores = { "comercio": "#ff5722", "ponto": "#2196f3", "referencia": "#4caf50", "servico": "#9c27b0" };
+
+        function iconePonto(tipo, cor) {
+            var corFinal = cor || pontoCores[tipo] || "#2196f3";
+            return L.divIcon({
+                className: "",
+                html: '<div style="background:' + corFinal + ';color:#fff;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.3)">' + (tipo === "comercio" ? "🏪" : tipo === "servico" ? "⚙️" : tipo === "referencia" ? "🔵" : "📍") + '</div>',
+                iconSize: [32, 32],
+                iconAnchor: [16, 16],
+                popupAnchor: [0, -18]
+            });
+        }
+
+        function renderizarPontos() {
+            pontoLayer.clearLayers();
+            pontos.forEach(function(p) {
+                var icone = iconePonto(p.tipo, p.cor);
+                var mk = L.marker([p.lat, p.lng], { icon: icone, id: p.id }).addTo(pontoLayer);
+                var html = "<b>" + p.icone + " " + p.nome + "</b>";
+                if (p.tipo) html += "<br><em>" + p.tipo + "</em>";
+                if (p.descricao) html += "<br>" + p.descricao;
+                html += '<br><div style="margin-top:6px">';
+                html += '<button onclick="editarPonto(' + p.id + ')" style="font-size:12px;padding:2px 8px;cursor:pointer">✏️ Editar</button> ';
+                html += '<button onclick="excluirPonto(' + p.id + ')" style="font-size:12px;padding:2px 8px;cursor:pointer;color:#c62828">🗑️ Excluir</button>';
+                html += "</div>";
+                mk.bindPopup(html);
+            });
+        }
+
+        function carregarPontos() {
+            fetch("/api/pontos")
+                .then(function(r) { return r.json(); })
+                .then(function(d) { pontos = d; renderizarPontos(); })
+                .catch(function(){});
+        }
+
+        function togglePonto() {
+            pontoAtivo = !pontoAtivo;
+            var btn = document.getElementById("btnPonto");
+            if (pontoAtivo) {
+                if (moverAtivo) toggleMover();
+                if (rotAtivo) toggleRotacionar();
+                btn.style.background = "#f44336";
+                btn.textContent = "🔒 Parar";
+                if (drawControl) map.removeControl(drawControl);
+                map.getContainer().style.cursor = "crosshair";
+                map.on("click", onMapClickPonto);
+            } else {
+                btn.style.background = "#2196f3";
+                btn.textContent = "📌 Marcação";
+                map.getContainer().style.cursor = "";
+                map.off("click", onMapClickPonto);
+                if (drawControl) map.addControl(drawControl);
+            }
+        }
+        window.togglePonto = togglePonto;
+
+        function onMapClickPonto(e) {
+            if (!pontoAtivo) return;
+            var lat = e.latlng.lat;
+            var lng = e.latlng.lng;
+            var nome = prompt("Nome do ponto/marcação:");
+            if (!nome || !nome.trim()) return;
+            var tipo = prompt("Tipo (ponto / comercio / referencia / servico):") || "ponto";
+            var descricao = prompt("Descrição (opcional):") || "";
+            fetch("/api/pontos/novo", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ lat: lat, lng: lng, nome: nome.trim(), tipo: tipo, descricao: descricao })
+            })
+            .then(function(r) { return r.json(); })
+            .then(function() {
+                mostrarStatus("Marcação adicionada!", "sucesso");
+                carregarPontos();
+            })
+            .catch(function() { mostrarStatus("Erro ao adicionar", "erro"); });
+        }
+
+        window.editarPonto = function(id) {
+            var p = null;
+            for (var i = 0; i < pontos.length; i++) {
+                if (pontos[i].id === id) { p = pontos[i]; break; }
+            }
+            if (!p) return;
+            var nome = prompt("Nome:", p.nome);
+            if (!nome || !nome.trim()) return;
+            var tipo = prompt("Tipo (ponto / comercio / referencia / servico):", p.tipo) || "ponto";
+            var descricao = prompt("Descrição:", p.descricao) || "";
+            fetch("/api/pontos/" + id, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ nome: nome.trim(), tipo: tipo, descricao: descricao })
+            })
+            .then(function(r) { return r.json(); })
+            .then(function() {
+                mostrarStatus("Marcação atualizada!", "sucesso");
+                carregarPontos();
+            })
+            .catch(function() { mostrarStatus("Erro ao atualizar", "erro"); });
+        };
+
+        window.excluirPonto = function(id) {
+            if (!confirm("Excluir esta marcação?")) return;
+            fetch("/api/pontos/" + id, { method: "DELETE" })
+            .then(function(r) { return r.json(); })
+            .then(function() {
+                mostrarStatus("Marcação excluída!", "sucesso");
+                carregarPontos();
+            })
+            .catch(function() { mostrarStatus("Erro ao excluir", "erro"); });
+        };
+
+        window.toggleRotacionar = function() {
+            rotAtivo = !rotAtivo;
+            var btn = document.getElementById("btnRot");
+            if (rotAtivo) {
+                if (moverAtivo) toggleMover();
+                if (pontoAtivo) togglePonto();
+                btn.style.background = "#f44336";
+                btn.textContent = "🔒 Travar";
+                if (drawControl) map.removeControl(drawControl);
+                setTimeout(prepararRotacionar, 100);
+            } else {
+                btn.style.background = "#9c27b0";
+                btn.textContent = "🔄 Girar";
+                limparRotacionar();
+                if (drawControl) map.addControl(drawControl);
+            }
+        };
+
+    } catch(e) {
+        document.getElementById("map").style.display = "none";
+        document.getElementById("mapFallback").style.display = "block";
+        document.getElementById("mapFallback").innerHTML += '<p style="color:#c62828;margin-top:8px">Detalhes: ' + e.message + '</p>';
+    }
+});
+</script>
+{% endblock %}

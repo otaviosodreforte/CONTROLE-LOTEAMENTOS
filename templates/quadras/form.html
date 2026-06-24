@@ -1,0 +1,82 @@
+﻿{% extends "base.html" %}
+{% block titulo %}{% if registro %}Editar{% else %}Nova{% endif %} Quadra{% endblock %}
+{% block conteudo %}
+<h1>{% if registro %}Editar{% else %}Nova{% endif %} Quadra - {{ loteamentos[0].nome if loteamentos else "" }}</h1>
+<form method="POST" class="form" style="margin-top:16px;max-width:800px">
+    {% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div>
+            <label>Identificação (ex: Quadra A) *</label>
+            <input type="text" name="identificacao" value="{{ registro.identificacao if registro else '' }}" required>
+            <label>Quantidade de Lotes</label>
+            <input type="number" name="qtd_lotes" value="{{ registro.qtd_lotes if registro else 0 }}">
+            <label>Rua Limite Norte</label>
+            <input type="text" name="rua_norte" value="{{ registro.rua_norte if registro else '' }}">
+            <label>Rua Limite Sul</label>
+            <input type="text" name="rua_sul" value="{{ registro.rua_sul if registro else '' }}">
+            <label>Rua Limite Leste</label>
+            <input type="text" name="rua_leste" value="{{ registro.rua_leste if registro else '' }}">
+            <label>Rua Limite Oeste</label>
+            <input type="text" name="rua_oeste" value="{{ registro.rua_oeste if registro else '' }}">
+            <input type="hidden" name="polygon_coords" id="polygon_coords" value="{{ registro.polygon_coords or '[]' }}">
+        </div>
+        <div>
+            <label>Desenhe o contorno da quadra no mapa</label>
+            <div id="map" style="height:400px;border-radius:6px"></div>
+            <button type="button" class="btn cancelar" onclick="limparPoligono()" style="margin-top:8px;font-size:12px">🗑️ Limpar polígono</button>
+        </div>
+    </div>
+    <div class="form-actions" style="margin-top:16px">
+        <button class="btn novo" type="submit">Salvar</button>
+        <a href="{{ url_for('quadras_lista') }}" class="btn cancelar">Cancelar</a>
+    </div>
+</form>
+<script>
+    const coordsIniciais = {{ registro.polygon_coords | safe if registro else '[]' }};
+    const lat = {{ loteamentos[0].lat if loteamentos and loteamentos[0] else -11.81 }};
+    const lng = {{ loteamentos[0].lng if loteamentos and loteamentos[0] else -42.06 }};
+
+    const map = L.map("map").setView([lat, lng], 17);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "&copy; OSM" }).addTo(map);
+
+    const drawnItems = new L.FeatureGroup();
+    map.addLayer(drawnItems);
+
+    const drawControl = new L.Control.Draw({
+        edit: { featureGroup: drawnItems },
+        draw: {
+            polygon: { shapeOptions: { color: "#1565c0", weight: 3, fillOpacity: 0.15 } },
+            rectangle: false, circle: false, circlemarker: false, marker: false, polyline: false
+        }
+    });
+    map.addControl(drawControl);
+
+    if (coordsIniciais.length > 0) {
+        const poly = L.polygon(coordsIniciais, { color: "#1565c0", weight: 3, fillOpacity: 0.15 });
+        drawnItems.addLayer(poly);
+        map.fitBounds(poly.getBounds().pad(0.3));
+    }
+
+    map.on(L.Draw.Event.CREATED, function(e) {
+        drawnItems.clearLayers();
+        drawnItems.addLayer(e.layer);
+        document.getElementById("polygon_coords").value = JSON.stringify(e.layer.getLatLngs()[0].map(p => [p.lat, p.lng]));
+    });
+    map.on(L.Draw.Event.EDITED, function() {
+        const layers = [];
+        drawnItems.eachLayer(l => layers.push(l));
+        if (layers.length > 0) {
+            const pts = layers[0].getLatLngs()[0].map(p => [p.lat, p.lng]);
+            document.getElementById("polygon_coords").value = JSON.stringify(pts);
+        }
+    });
+    map.on(L.Draw.Event.DELETED, function() {
+        document.getElementById("polygon_coords").value = "[]";
+    });
+
+    function limparPoligono() {
+        drawnItems.clearLayers();
+        document.getElementById("polygon_coords").value = "[]";
+    }
+</script>
+{% endblock %}

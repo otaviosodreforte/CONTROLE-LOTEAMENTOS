@@ -1,0 +1,33 @@
+﻿{% extends "base.html" %}
+{% block titulo %}Loteamentos{% endblock %}
+{% block conteudo %}
+<div class="toolbar">
+    <h1>Loteamentos</h1>
+    <a href="{{ url_for('loteamentos_novo') }}" class="btn novo">+ Novo Loteamento</a>
+</div>
+<div class="busca">
+    <form method="GET" style="display:flex;gap:10px;align-items:end">
+        <input type="text" name="busca" placeholder="Buscar por nome..." value="{{ busca }}">
+        <button class="btn editar" type="submit">Buscar</button>
+        {% if busca %}<a href="{{ url_for('loteamentos_lista') }}" class="btn cancelar">Limpar</a>{% endif %}
+    </form>
+</div>
+<table>
+    <thead><tr><th>Nome</th><th>Endereço</th><th>Quadras</th><th>Lotes</th><th>Ações</th></tr></thead>
+    <tbody>
+        {% for r in registros %}
+        <tr>
+            <td>{{ r.nome }}</td><td>{{ r.endereco or "—" }}</td>
+            <td>{{ r.total_quadras }}</td><td>{{ r.total_lotes }}</td>
+            <td class="acoes">
+                <a href="{{ url_for('loteamentos_editar', id=r.id) }}" class="btn editar">✏️</a>
+                <a href="{{ url_for('loteamentos_mapa', id=r.id) }}" class="btn" style="background:#43a047;color:#fff">🗺️ Mapa</a>
+                <a href="{{ url_for('loteamentos_excluir', id=r.id) }}" class="btn excluir" onclick="return confirm('Excluir loteamento?')">🗑️</a>
+            </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="vazio">Nenhum loteamento cadastrado.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

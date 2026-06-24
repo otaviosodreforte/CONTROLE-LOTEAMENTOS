@@ -1,0 +1,14 @@
+﻿{% extends "base.html" %}
+{% block titulo %}Dashboard{% endblock %}
+{% block conteudo %}
+<div class="toolbar"><h1>Dashboard</h1></div>
+<div class="cards">
+    <div class="card"><h3>Loteamentos</h3><div class="valor azul">{{ total_loteamentos }}</div></div>
+    <div class="card"><h3>Quadras</h3><div class="valor azul">{{ total_quadras }}</div></div>
+    <div class="card"><h3>Lotes</h3><div class="valor">{{ total_lotes }}</div></div>
+    <div class="card"><h3>Disponíveis</h3><div class="valor verde">{{ lotes_disponiveis }}</div></div>
+    <div class="card"><h3>Vendidos</h3><div class="valor vermelho">{{ lotes_vendidos }}</div></div>
+    <div class="card"><h3>Permutados</h3><div class="valor laranja">{{ lotes_permutados }}</div></div>
+    <div class="card"><h3>Vendas Realizadas</h3><div class="valor azul">{{ total_vendas }}</div></div>
+</div>
+{% endblock %}

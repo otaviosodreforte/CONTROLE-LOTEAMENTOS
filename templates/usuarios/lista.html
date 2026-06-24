@@ -1,0 +1,31 @@
+﻿{% extends "base.html" %}
+{% block titulo %}Usuários{% endblock %}
+{% block conteudo %}
+<div class="toolbar">
+    <h1>Usuários</h1>
+    <a href="{{ url_for('usuarios_novo') }}" class="btn novo">+ Novo Usuário</a>
+</div>
+<table>
+    <thead><tr><th>Usuário</th><th>Criado em</th><th>Permissões</th><th>Loteamentos</th><th>Ações</th></tr></thead>
+    <tbody>
+        {% for r in registros %}
+        <tr>
+            <td>{{ r.username }}</td><td>{{ r.criado_em }}</td>
+            <td>
+                {% set perms_list = (r.permissoes_lista or "").split(', ') %}
+                {% for p in perms_list %}
+                {% if p %}<span class="tag" style="display:inline-block;background:#e3f2fd;padding:2px 8px;border-radius:4px;margin:2px;font-size:12px">{{ p }}</span>{% endif %}
+                {% endfor %}
+                {% if not perms_list or not perms_list[0] %}<span style="color:#999">—</span>{% endif %}
+            </td>
+            <td>{{ r.loteamentos_nomes }}</td>
+            <td>
+                <a href="{{ url_for('usuarios_editar', id=r.id) }}" class="btn editar">✏️</a>
+            </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="vazio">Nenhum usuário cadastrado.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

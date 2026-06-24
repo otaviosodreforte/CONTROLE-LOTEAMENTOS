@@ -1,0 +1,22 @@
+﻿{% extends "base.html" %}
+{% block titulo %}Formas de Pagamento{% endblock %}
+{% block conteudo %}
+<div class="toolbar"><h1>Formas de Pagamento</h1></div>
+<table>
+    <thead><tr><th>Nome</th><th>Ações</th></tr></thead>
+    <tbody>
+        {% for r in registros %}
+        <tr>
+            <td>{{ r.nome }}</td>
+            <td><a href="{{ url_for('formas_pagamento_excluir', id=r.id) }}" class="btn excluir" onclick="return confirm('Excluir?')">🗑️</a></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="2" class="vazio">Nenhuma forma de pagamento.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+<form method="POST" action="{{ url_for('formas_pagamento_novo') }}" style="display:flex;gap:10px;margin-top:16px;align-items:end">
+    <div><label>Nova Forma</label><input type="text" name="nome" required></div>
+    <button class="btn novo" type="submit">Adicionar</button>
+</form>
+{% endblock %}

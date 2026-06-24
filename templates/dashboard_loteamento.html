@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block titulo %}Dashboard - {{ loteamento.nome }}{% endblock %}
+{% block conteudo %}
+<div class="toolbar">
+    <h1>{{ loteamento.nome }}</h1>
+    <a href="{{ url_for('selecionar_loteamento') }}" class="btn cancelar">🔄 Trocar Loteamento</a>
+</div>
+{% if loteamento.endereco %}<p style="color:#666;margin-bottom:16px">{{ loteamento.endereco }}</p>{% endif %}
+<div class="cards">
+    <div class="card"><h3>Quadras</h3><div class="valor azul">{{ total_quadras }}</div></div>
+    <div class="card"><h3>Lotes</h3><div class="valor">{{ total_lotes }}</div></div>
+    <div class="card"><h3>Disponíveis</h3><div class="valor verde">{{ lotes_disponiveis }}</div></div>
+    <div class="card"><h3>Vendidos</h3><div class="valor vermelho">{{ lotes_vendidos }}</div></div>
+    <div class="card"><h3>Permutados</h3><div class="valor laranja">{{ lotes_permutados }}</div></div>
+    <div class="card"><h3>Vendas</h3><div class="valor azul">{{ total_vendas }}</div></div>
+</div>
+{% if loteamento.lat and loteamento.lng %}
+<a href="{{ url_for('loteamentos_mapa', id=loteamento.id) }}" class="btn editar" target="_blank">🗺️ Ver Mapa</a>
+{% endif %}
+{% endblock %}

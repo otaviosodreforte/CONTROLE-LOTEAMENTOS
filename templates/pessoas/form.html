@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block titulo %}{% if registro %}Editar{% else %}Nova{% endif %} Pessoa{% endblock %}
+{% block conteudo %}
+<h1>{% if registro %}Editar{% else %}Nova{% endif %} Pessoa</h1>
+<form method="POST" class="form" style="margin-top:16px">
+    {% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
+    <label>Nome *</label>
+    <input type="text" name="nome" value="{{ registro.nome if registro else '' }}" required>
+    <label>CPF</label>
+    <input type="text" name="cpf" value="{{ registro.cpf if registro else '' }}">
+    <label>RG</label>
+    <input type="text" name="rg" value="{{ registro.rg if registro else '' }}">
+    <label>Contato</label>
+    <input type="text" name="contato" value="{{ registro.contato if registro else '' }}">
+    <label>Endereço</label>
+    <input type="text" name="endereco" value="{{ registro.endereco if registro else '' }}">
+    <label>Observação</label>
+    <textarea name="observacao">{{ registro.observacao if registro else '' }}</textarea>
+    <label>Referência Marcação <small>(1 letra)</small></label>
+    <input type="text" name="referencia_marcacao" value="{{ registro.referencia_marcacao if registro else '' }}" maxlength="1" style="width:60px;text-transform:uppercase">
+    <div class="form-actions">
+        <button class="btn novo" type="submit">Salvar</button>
+        <a href="{{ url_for('pessoas_lista') }}" class="btn cancelar">Cancelar</a>
+    </div>
+</form>
+{% endblock %}

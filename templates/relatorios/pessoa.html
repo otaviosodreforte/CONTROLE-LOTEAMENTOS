@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block titulo %}Relatório - {{ pessoa.nome }}{% endblock %}
+{% block conteudo %}
+<div class="toolbar">
+    <h1>Relatório de {{ pessoa.nome }}</h1>
+    <a href="javascript:window.print()" class="btn editar">🖨️ Imprimir</a>
+</div>
+<p style="margin-bottom:20px;color:#666">{{ loteamento.nome }}</p>
+
+<div style="background:#fff;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.1);margin-bottom:20px;padding:20px">
+    <h2 style="color:#1a237e;margin-bottom:12px">Dados Pessoais</h2>
+    <table>
+        <tr><td style="font-weight:600;width:120px">Nome</td><td>{{ pessoa.nome }}</td></tr>
+        <tr><td style="font-weight:600">CPF</td><td>{{ pessoa.cpf or "—" }}</td></tr>
+        <tr><td style="font-weight:600">RG</td><td>{{ pessoa.rg or "—" }}</td></tr>
+        <tr><td style="font-weight:600">Contato</td><td>{{ pessoa.contato or "—" }}</td></tr>
+        <tr><td style="font-weight:600">Endereço</td><td>{{ pessoa.endereco or "—" }}</td></tr>
+        <tr><td style="font-weight:600">Observação</td><td>{{ pessoa.observacao or "—" }}</td></tr>
+    </table>
+</div>
+
+{% if lotes_dono %}
+<div style="background:#fff;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.1);margin-bottom:20px;padding:20px;page-break-inside:avoid">
+    <h2 style="color:#1a237e;margin-bottom:12px">Lotes como Proprietário ({{ lotes_dono|length }})</h2>
+    <table>
+        <thead><tr><th>Quadra</th><th>Lote</th><th>Frente (m)</th><th>Fundo (m)</th><th>Área (m²)</th><th>Status</th></tr></thead>
+        <tbody>
+            {% for l in lotes_dono %}
+            <tr>
+                <td>{{ l.quadra_nome }}</td>
+                <td>{{ l.numero or "—" }}</td>
+                <td>{{ "%.2f"|format(l.tamanho_frente) }}</td>
+                <td>{{ "%.2f"|format(l.tamanho_fundo) }}</td>
+                <td>{{ "%.2f"|format(l.tamanho_frente * l.tamanho_fundo) }}</td>
+                <td>{{ l.status }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+{% if vendas_vendedor %}
+<div style="background:#fff;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.1);margin-bottom:20px;padding:20px;page-break-inside:avoid">
+    <h2 style="color:#1a237e;margin-bottom:12px">Vendas como Vendedor ({{ vendas_vendedor|length }})</h2>
+    <table>
+        <thead><tr><th>Data</th><th>Lote</th><th>Valor</th><th>Comprador</th><th>Forma Pag.</th><th>Parcelas</th></tr></thead>
+        <tbody>
+            {% for v in vendas_vendedor %}
+            <tr>
+                <td>{{ v.data }}</td>
+                <td>{{ v.quadra_nome }} - {{ v.lote_numero }}</td>
+                <td>R$ {{ "%.2f"|format(v.valor_total) }}</td>
+                <td>{{ v.comprador_nome }}</td>
+                <td>{{ v.forma_pagamento_nome or "—" }}</td>
+                <td>{{ v.numero_parcelas }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+{% if vendas_comprador %}
+<div style="background:#fff;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.1);margin-bottom:20px;padding:20px;page-break-inside:avoid">
+    <h2 style="color:#1a237e;margin-bottom:12px">Vendas como Comprador ({{ vendas_comprador|length }})</h2>
+    <table>
+        <thead><tr><th>Data</th><th>Lote</th><th>Valor</th><th>Vendedor</th><th>Forma Pag.</th><th>Parcelas</th></tr></thead>
+        <tbody>
+            {% for v in vendas_comprador %}
+            <tr>
+                <td>{{ v.data }}</td>
+                <td>{{ v.quadra_nome }} - {{ v.lote_numero }}</td>
+                <td>R$ {{ "%.2f"|format(v.valor_total) }}</td>
+                <td>{{ v.vendedor_nome }}</td>
+                <td>{{ v.forma_pagamento_nome or "—" }}</td>
+                <td>{{ v.numero_parcelas }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+{% if permutas_anterior %}
+<div style="background:#fff;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.1);margin-bottom:20px;padding:20px;page-break-inside:avoid">
+    <h2 style="color:#1a237e;margin-bottom:12px">Permutas como Doador/Anterior ({{ permutas_anterior|length }})</h2>
+    <table>
+        <thead><tr><th>Data</th><th>Lotes</th><th>Recebedor</th><th>Observação</th></tr></thead>
+        <tbody>
+            {% for p in permutas_anterior %}
+            <tr>
+                <td>{{ p.data }}</td>
+                <td>{{ p.lotes_nums or "—" }}</td>
+                <td>{{ p.dono_posterior_nome }}</td>
+                <td>{{ p.observacao or "—" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+{% if permutas_posterior %}
+<div style="background:#fff;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.1);margin-bottom:20px;padding:20px;page-break-inside:avoid">
+    <h2 style="color:#1a237e;margin-bottom:12px">Permutas como Recebedor/Posterior ({{ permutas_posterior|length }})</h2>
+    <table>
+        <thead><tr><th>Data</th><th>Lotes</th><th>Doador</th><th>Observação</th></tr></thead>
+        <tbody>
+            {% for p in permutas_posterior %}
+            <tr>
+                <td>{{ p.data }}</td>
+                <td>{{ p.lotes_nums or "—" }}</td>
+                <td>{{ p.dono_anterior_nome }}</td>
+                <td>{{ p.observacao or "—" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+{% if not lotes_dono and not vendas_vendedor and not vendas_comprador and not permutas_anterior and not permutas_posterior %}
+<div class="vazio" style="padding:40px;text-align:center;color:#999">Nenhum registro encontrado para esta pessoa no loteamento atual.</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,47 @@
+﻿{% extends "base.html" %}
+{% block titulo %}{% if registro %}Editar{% else %}Novo{% endif %} Loteamento{% endblock %}
+{% block conteudo %}
+<h1>{% if registro %}Editar{% else %}Novo{% endif %} Loteamento</h1>
+<form method="POST" class="form" style="margin-top:16px">
+    {% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
+    <label>Nome *</label>
+    <input type="text" name="nome" value="{{ registro.nome if registro else '' }}" required>
+    <label>Endereço</label>
+    <input type="text" name="endereco" value="{{ registro.endereco if registro else '' }}">
+    <label>Latitude</label>
+    <input type="number" step="any" name="lat" id="lat" value="{{ registro.lat if registro else '-11.81' }}">
+    <label>Longitude</label>
+    <input type="number" step="any" name="lng" id="lng" value="{{ registro.lng if registro else '-42.06' }}">
+    <button type="button" class="btn editar" onclick="centralizarBarraMendes()" style="margin-bottom:16px">📍 Centralizar em Barra do Mendes</button>
+    <label>Posicione o mapa no centro do loteamento (clique para marcar)</label>
+    <div id="map" style="height:300px;margin-bottom:16px;border-radius:6px"></div>
+    <div class="form-actions">
+        <button class="btn novo" type="submit">Salvar</button>
+        <a href="{{ url_for('loteamentos_lista') }}" class="btn cancelar">Cancelar</a>
+    </div>
+</form>
+<script>
+    const lat = parseFloat(document.getElementById("lat").value) || -11.81;
+    const lng = parseFloat(document.getElementById("lng").value) || -42.06;
+    const map = L.map("map").setView([lat, lng], 15);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "&copy; OSM" }).addTo(map);
+    const marker = L.marker([lat, lng], { draggable: true }).addTo(map);
+    marker.on("dragend", function() {
+        const p = marker.getLatLng();
+        document.getElementById("lat").value = p.lat.toFixed(6);
+        document.getElementById("lng").value = p.lng.toFixed(6);
+    });
+    map.on("click", function(e) {
+        marker.setLatLng(e.latlng);
+        document.getElementById("lat").value = e.latlng.lat.toFixed(6);
+        document.getElementById("lng").value = e.latlng.lng.toFixed(6);
+    });
+    function centralizarBarraMendes() {
+        const p = L.latLng(-11.81, -42.06);
+        marker.setLatLng(p);
+        map.setView(p, 15);
+        document.getElementById("lat").value = (-11.81).toFixed(6);
+        document.getElementById("lng").value = (-42.06).toFixed(6);
+    }
+</script>
+{% endblock %}

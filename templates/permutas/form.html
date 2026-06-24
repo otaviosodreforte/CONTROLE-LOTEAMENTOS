@@ -1,0 +1,45 @@
+﻿{% extends "base.html" %}
+{% block titulo %}Nova Permuta{% endblock %}
+{% block conteudo %}
+<h1>Nova Permuta de Lotes</h1>
+<form method="POST" class="form" style="margin-top:16px">
+    {% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
+    <label>Data</label>
+    <input type="date" name="data" value="{{ 'now' | fmt_data }}">
+    <label>Doador / Proprietário Anterior (Pessoa Cadastrada)</label>
+    <select name="dono_anterior_pessoa_id" onchange="document.getElementById('dono_anterior_nome').value=this.options[this.selectedIndex].dataset.nome||'';document.getElementById('dono_anterior_cpf').value=this.options[this.selectedIndex].dataset.cpf||''">
+        <option value="">--- Selecione ou digite manualmente ---</option>
+        {% for p in pessoas %}
+        <option value="{{ p.id }}" data-nome="{{ p.nome }}" data-cpf="{{ p.cpf }}">{{ p.nome }} ({{ p.cpf }})</option>
+        {% endfor %}
+    </select>
+    <a href="{{ url_for('pessoas_novo') }}" target="_blank" class="btn editar" style="font-size:12px;margin-bottom:16px;display:inline-block">+ Nova Pessoa</a>
+    <label>Doador / Proprietário Anterior *</label>
+    <input type="text" name="dono_anterior_nome" id="dono_anterior_nome" required>
+    <label>CPF do Doador</label>
+    <input type="text" name="dono_anterior_cpf" id="dono_anterior_cpf">
+    <label>Recebedor / Novo Proprietário (Pessoa Cadastrada)</label>
+    <select name="dono_posterior_pessoa_id" onchange="document.getElementById('dono_posterior_nome').value=this.options[this.selectedIndex].dataset.nome||'';document.getElementById('dono_posterior_cpf').value=this.options[this.selectedIndex].dataset.cpf||''">
+        <option value="">--- Selecione ou digite manualmente ---</option>
+        {% for p in pessoas %}
+        <option value="{{ p.id }}" data-nome="{{ p.nome }}" data-cpf="{{ p.cpf }}">{{ p.nome }} ({{ p.cpf }})</option>
+        {% endfor %}
+    </select>
+    <label>Recebedor / Novo Proprietário *</label>
+    <input type="text" name="dono_posterior_nome" id="dono_posterior_nome" required>
+    <label>CPF do Recebedor</label>
+    <input type="text" name="dono_posterior_cpf" id="dono_posterior_cpf">
+    <label>Selecione os Lotes *</label>
+    <select name="lote_ids" multiple style="height:200px" required>
+        {% for l in lotes %}
+        <option value="{{ l.id }}">{{ l.quadra_nome }} - Lote {{ l.numero }} ({{ l.status }})</option>
+        {% endfor %}
+    </select>
+    <label>Observação</label>
+    <textarea name="observacao"></textarea>
+    <div class="form-actions">
+        <button class="btn novo" type="submit">Registrar Permuta</button>
+        <a href="{{ url_for('permutas_lista') }}" class="btn cancelar">Cancelar</a>
+    </div>
+</form>
+{% endblock %}

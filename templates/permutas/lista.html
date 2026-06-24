@@ -1,0 +1,28 @@
+﻿{% extends "base.html" %}
+{% block titulo %}Permutas{% endblock %}
+{% block conteudo %}
+<div class="toolbar">
+    <h1>🔄 Permutas de Lotes</h1>
+    <a href="{{ url_for('permutas_novo') }}" class="btn novo">+ Nova Permuta</a>
+</div>
+<table>
+    <thead><tr><th>Data</th><th>Doador (Anterior)</th><th>Recebedor (Posterior)</th><th>Lotes</th><th>Recibo</th><th>Ações</th></tr></thead>
+    <tbody>
+        {% for r in registros %}
+        <tr>
+            <td>{{ r.data | fmt_data }}</td>
+            <td>{{ r.dono_anterior_nome }}</td><td>{{ r.dono_posterior_nome }}</td>
+            <td>{{ r.lotes_nums or "—" }}</td>
+            <td>
+                {% if r.recibo_pdf %}
+                <a href="{{ url_for('permutas_recibo', id=r.id) }}" class="btn editar" target="_blank">📄 PDF</a>
+                {% else %}—{% endif %}
+            </td>
+            <td><a href="{{ url_for('permutas_excluir', id=r.id) }}" class="btn excluir" onclick="return confirm('Excluir permuta?')">🗑️</a></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="vazio">Nenhuma permuta registrada.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,47 @@
+﻿{% extends "base.html" %}
+{% block titulo %}Pagamentos{% endblock %}
+{% block conteudo %}
+<div class="toolbar">
+    <h1>📆 Pagamentos</h1>
+</div>
+<div class="busca">
+    <form method="GET" style="display:flex;gap:10px;align-items:end">
+        <select name="venda_id" onchange="this.form.submit()">
+            <option value="">Todas as vendas</option>
+            {% for v in vendas %}
+            <option value="{{ v.id }}" {{ 'selected' if venda_id|string==v.id|string }}>Lote {{ v.lote_numero }} - {{ v.comprador_nome }}</option>
+            {% endfor %}
+        </select>
+    </form>
+</div>
+<table>
+    <thead><tr><th>Venda</th><th>Comprador</th><th>Parcela</th><th>Vencimento</th><th>Valor</th><th>Pago</th><th>Data Pagto</th><th>Recibo</th><th>Ação</th></tr></thead>
+    <tbody>
+        {% for r in registros %}
+        <tr style="{{ 'background:#e8f5e9' if r.pago }}">
+            <td>Lote {{ r.lote_numero }}</td><td>{{ r.comprador_nome }}</td>
+            <td>{{ r.numero_parcela }}/{{ r.numero_parcelas }}</td>
+            <td>{{ r.data_vencimento | fmt_data }}</td>
+            <td>{{ r.valor | fmt_brl }}</td>
+            <td>{{ "✅" if r.pago else "❌" }}</td>
+            <td>{{ r.data_pagamento | fmt_data }}</td>
+            <td>
+                {% if r.recibo_pdf %}
+                <a href="{{ url_for('pagamentos_recibo', id=r.id) }}" class="btn editar" target="_blank">📄</a>
+                {% else %}—{% endif %}
+            </td>
+            <td>
+                <form method="POST" action="{{ url_for('pagamentos_editar', id=r.id) }}" style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
+                    <input type="date" name="data_pagamento" value="{{ r.data_pagamento or '' }}" style="width:130px;padding:4px;font-size:12px">
+                    <input type="number" step="0.01" name="valor" value="{{ r.valor }}" style="width:90px;padding:4px;font-size:12px">
+                    <label style="font-size:12px"><input type="checkbox" name="pago" value="1" {{ 'checked' if r.pago }} onchange="this.form.submit()"> Pago</label>
+                    <button class="btn editar" style="padding:4px 8px;font-size:12px">Salvar</button>
+                </form>
+            </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="9" class="vazio">Nenhum pagamento encontrado.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

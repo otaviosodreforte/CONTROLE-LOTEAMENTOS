@@ -1,0 +1,39 @@
+﻿{% extends "base.html" %}
+{% block titulo %}{% if registro %}Editar{% else %}Novo{% endif %} Usuário{% endblock %}
+{% block conteudo %}
+<h1>{% if registro %}Editar{% else %}Novo{% endif %} Usuário</h1>
+<form method="POST" class="form" style="margin-top:16px">
+    {% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
+    {% if not registro %}
+    <label>Usuário *</label>
+    <input type="text" name="username" required>
+    {% endif %}
+    <label>Senha {% if registro %}(deixe em branco para manter a atual){% else %}*{% endif %}</label>
+    <input type="password" name="password" {{ 'required' if not registro }}>
+    <label>Permissões de Módulo</label>
+    <div class="checkbox-group">
+        {% set modulos = {"usuarios": "Usuários", "loteamentos_admin": "Admin. Loteamentos"} %}
+        {% for key, label in modulos.items() %}
+        <label>
+            <input type="checkbox" name="permissoes" value="{{ key }}" {{ 'checked' if user_perms and key in user_perms }}>
+            {{ label }}
+        </label>
+        {% endfor %}
+    </div>
+    <label>Acesso aos Loteamentos</label>
+    <div class="checkbox-group">
+        {% for l in todos_loteamentos %}
+        <label>
+            <input type="checkbox" name="loteamentos" value="{{ l.id }}" {{ 'checked' if user_lots_ids and l.id in user_lots_ids }}>
+            {{ l.nome }}
+        </label>
+        {% else %}
+        <p style="color:#999;font-size:13px">Nenhum loteamento cadastrado.</p>
+        {% endfor %}
+    </div>
+    <div class="form-actions">
+        <button class="btn novo" type="submit">Salvar</button>
+        <a href="{{ url_for('usuarios_lista') }}" class="btn cancelar">Cancelar</a>
+    </div>
+</form>
+{% endblock %}

@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block titulo %}Selecionar Loteamento{% endblock %}
+{% block conteudo %}
+<div class="toolbar"><h1>Selecione um Loteamento</h1></div>
+<div class="cards">
+    {% for l in loteamentos %}
+    <a href="{{ url_for('set_loteamento', id=l.id) }}" style="text-decoration:none;color:inherit">
+        <div class="card" style="cursor:pointer;transition:.2s;border:2px solid transparent">
+            <div class="card" style="box-shadow:0 2px 8px rgba(0,0,0,.1)">
+                <h3>{{ l.endereco or "Sem endereço" }}</h3>
+                <div class="valor" style="font-size:18px">{{ l.nome }}</div>
+                <div style="margin-top:8px;font-size:13px;color:#666">
+                    {{ l.qtd_quadras }} quadras &middot; {{ l.qtd_lotes }} lotes
+                </div>
+            </div>
+        </div>
+    </a>
+    {% else %}
+    <div class="card" style="grid-column:1/-1;text-align:center;padding:40px">
+        <p style="color:#999;font-size:16px">Você não tem acesso a nenhum loteamento.</p>
+        {% if 'loteamentos_admin' in session.get('permissoes', []) %}
+        <a href="{{ url_for('loteamentos_novo') }}" class="btn novo" style="margin-top:16px">+ Criar Loteamento</a>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

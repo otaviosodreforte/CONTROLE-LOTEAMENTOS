@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block titulo %}Relatório por Pessoa{% endblock %}
+{% block conteudo %}
+<div class="toolbar">
+    <h1>Relatório por Pessoa</h1>
+</div>
+<div class="busca">
+    <form method="GET" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap">
+        <input type="text" name="busca" placeholder="Buscar nome ou CPF..." value="{{ busca }}">
+        <button class="btn editar" type="submit">Buscar</button>
+        {% if busca %}<a href="{{ url_for('relatorios_pessoa_selecionar') }}" class="btn cancelar">Limpar</a>{% endif %}
+    </form>
+</div>
+<table>
+    <thead><tr><th>Nome</th><th>CPF</th><th>RG</th><th>Contato</th><th>Ação</th></tr></thead>
+    <tbody>
+        {% for p in pessoas %}
+        <tr>
+            <td>{{ p.nome }}</td>
+            <td>{{ p.cpf or "—" }}</td>
+            <td>{{ p.rg or "—" }}</td>
+            <td>{{ p.contato or "—" }}</td>
+            <td><a href="{{ url_for('relatorios_pessoa', id=p.id) }}" class="btn editar">📊 Relatório</a></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="vazio">Nenhuma pessoa encontrada.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
