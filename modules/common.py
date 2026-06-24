@@ -192,6 +192,123 @@ def _init_pg(conn):
     """)
 
 
+def _init_sqlite(conn):
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS usuarios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL UNIQUE,
+            password_hash TEXT NOT NULL,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+        );
+        CREATE TABLE IF NOT EXISTS permissoes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+            modulo TEXT NOT NULL,
+            UNIQUE(usuario_id, modulo)
+        );
+        CREATE TABLE IF NOT EXISTS loteamentos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL,
+            endereco TEXT DEFAULT '',
+            qtd_quadras INTEGER DEFAULT 0,
+            qtd_lotes INTEGER DEFAULT 0,
+            lat REAL, lng REAL,
+            ativo INTEGER DEFAULT 1,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+        );
+        CREATE TABLE IF NOT EXISTS quadras (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            loteamento_id INTEGER NOT NULL REFERENCES loteamentos(id) ON DELETE CASCADE,
+            identificacao TEXT NOT NULL,
+            qtd_lotes INTEGER DEFAULT 0,
+            rua_norte TEXT DEFAULT '', rua_sul TEXT DEFAULT '',
+            rua_leste TEXT DEFAULT '', rua_oeste TEXT DEFAULT '',
+            polygon_coords TEXT DEFAULT '[]',
+            criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+        );
+        CREATE TABLE IF NOT EXISTS lotes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            quadra_id INTEGER NOT NULL REFERENCES quadras(id) ON DELETE CASCADE,
+            numero TEXT DEFAULT '',
+            tamanho_frente REAL DEFAULT 0, tamanho_fundo REAL DEFAULT 0,
+            dono_nome TEXT DEFAULT '', dono_cpf TEXT DEFAULT '', dono_contato TEXT DEFAULT '',
+            lotes_limitrofes TEXT DEFAULT '[]',
+            status TEXT DEFAULT 'disponivel',
+            polygon_coords TEXT DEFAULT '[]',
+            dono_pessoa_id INTEGER REFERENCES pessoas(id),
+            vendedor_pessoa_id INTEGER REFERENCES pessoas(id),
+            comprador_pessoa_id INTEGER REFERENCES pessoas(id),
+            criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+        );
+        CREATE TABLE IF NOT EXISTS formas_pagamento (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL UNIQUE,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+        );
+        CREATE TABLE IF NOT EXISTS permutas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            data TEXT NOT NULL DEFAULT (date('now','localtime')),
+            dono_anterior_nome TEXT NOT NULL, dono_anterior_cpf TEXT DEFAULT '',
+            dono_posterior_nome TEXT NOT NULL, dono_posterior_cpf TEXT DEFAULT '',
+            observacao TEXT DEFAULT '', recibo_pdf TEXT DEFAULT '',
+            dono_anterior_pessoa_id INTEGER REFERENCES pessoas(id),
+            dono_posterior_pessoa_id INTEGER REFERENCES pessoas(id),
+            criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+        );
+        CREATE TABLE IF NOT EXISTS permuta_lotes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            permuta_id INTEGER NOT NULL REFERENCES permutas(id) ON DELETE CASCADE,
+            lote_id INTEGER NOT NULL REFERENCES lotes(id) ON DELETE CASCADE,
+            UNIQUE(permuta_id, lote_id)
+        );
+        CREATE TABLE IF NOT EXISTS vendas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            data TEXT NOT NULL DEFAULT (date('now','localtime')),
+            lote_id INTEGER NOT NULL REFERENCES lotes(id),
+            vendedor_nome TEXT NOT NULL, vendedor_cpf TEXT DEFAULT '', vendedor_contato TEXT DEFAULT '',
+            comprador_nome TEXT NOT NULL, comprador_cpf TEXT DEFAULT '', comprador_contato TEXT DEFAULT '',
+            valor_total REAL DEFAULT 0,
+            forma_pagamento_id INTEGER REFERENCES formas_pagamento(id),
+            numero_parcelas INTEGER DEFAULT 1,
+            observacao TEXT DEFAULT '', recibo_pdf TEXT DEFAULT '',
+            vendedor_pessoa_id INTEGER REFERENCES pessoas(id),
+            comprador_pessoa_id INTEGER REFERENCES pessoas(id),
+            criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+        );
+        CREATE TABLE IF NOT EXISTS pagamentos_venda (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            venda_id INTEGER NOT NULL REFERENCES vendas(id) ON DELETE CASCADE,
+            numero_parcela INTEGER DEFAULT 1,
+            data_vencimento TEXT DEFAULT '', data_pagamento TEXT DEFAULT '',
+            valor REAL DEFAULT 0, pago INTEGER DEFAULT 0,
+            recibo_pdf TEXT DEFAULT '',
+            criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+        );
+        CREATE TABLE IF NOT EXISTS usuario_loteamentos (
+            usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+            loteamento_id INTEGER NOT NULL REFERENCES loteamentos(id) ON DELETE CASCADE,
+            UNIQUE(usuario_id, loteamento_id)
+        );
+        CREATE TABLE IF NOT EXISTS pessoas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL, cpf TEXT DEFAULT '', rg TEXT DEFAULT '',
+            contato TEXT DEFAULT '', endereco TEXT DEFAULT '',
+            observacao TEXT DEFAULT '', referencia_marcacao TEXT DEFAULT '',
+            criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+        );
+        CREATE TABLE IF NOT EXISTS pontos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            loteamento_id INTEGER NOT NULL REFERENCES loteamentos(id) ON DELETE CASCADE,
+            lat REAL NOT NULL, lng REAL NOT NULL,
+            nome TEXT NOT NULL DEFAULT '', tipo TEXT NOT NULL DEFAULT 'ponto',
+            cor TEXT NOT NULL DEFAULT '#2196f3', descricao TEXT DEFAULT '',
+            icone TEXT DEFAULT '\U0001f4cd',
+            criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+        );
+    """)
+
+
+
 def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):

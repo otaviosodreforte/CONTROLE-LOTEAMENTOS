@@ -15,7 +15,7 @@ try:
 except ImportError:
     pass
 
-from modules.common import get_db, login_required, permissao_required, DB_PATH, RECIBOS_DIR, USING_PG, _init_pg, _init_sqlite
+from modules.common import get_db, login_required, permissao_required, DB_PATH, RECIBOS_DIR, USING_PG, _init_pg
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "controle-loteamentos-dev-key")
@@ -69,6 +69,7 @@ def init_db():
         if USING_PG:
             _init_pg(conn)
         else:
+            from modules.common import _init_sqlite
             _init_sqlite(conn)
 
         admin = conn.execute("SELECT id FROM usuarios WHERE username=?", ("admin",)).fetchone()
