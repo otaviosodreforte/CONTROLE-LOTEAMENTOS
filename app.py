@@ -48,6 +48,83 @@ def gerar_poligono_trapezio(frente, fundo, esquerda, direita, coords_atuais):
     p3n_lng = p2n_lng + du_lng * dire
     return [[p1n_lat, p1n_lng], [p2n_lat, p2n_lng], [p3n_lat, p3n_lng], [p4n_lat, p4n_lng]]
 
+
+def recalcular_lotes_por_quadra(conn, quadra_id):
+    q = conn.execute("SELECT polygon_coords, layout FROM quadras WHERE id=?", (quadra_id,)).fetchone()
+    if not q:
+        return 0
+    layout = (q["layout"] or "horizontal").strip().lower()
+    coords = json.loads(q["polygon_coords"] or "[]")
+    if len(coords) < 4:
+        return 0
+    tl, tr, br, bl = coords[0], coords[1], coords[2], coords[3]
+
+    def interp(a, b, t):
+        return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]
+
+    lots = conn.execute("SELECT id, numero FROM lotes WHERE quadra_id=? ORDER BY CAST(numero AS INTEGER)", (quadra_id,)).fetchall()
+    count = len(lots)
+    if count == 0:
+        return 0
+
+    if layout == "vertical":
+        ct = interp(tl, tr, 0.5)  # center-top (south side)
+        cb = interp(bl, br, 0.5)  # center-bottom (north side)
+        left_count = count // 2
+        updated = 0
+        for i, row in enumerate(lots):
+            if i < left_count:
+                # Left column: from BL (north/top) -> TL (south/bottom)
+                t = i / left_count if left_count > 0 else 0
+                t_next = (i + 1) / left_count if left_count > 0 else 1
+                fl = interp(bl, tl, t)
+                fr = interp(bl, tl, t_next)
+                bc_l = interp(cb, ct, t)
+                bc_r = interp(cb, ct, t_next)
+            else:
+                # Right column: from BR (north/top) -> TR (south/bottom)
+                bi = i - left_count
+                right_count = count - left_count
+                t = bi / right_count if right_count > 0 else 0
+                t_next = (bi + 1) / right_count if right_count > 0 else 1
+                fl = interp(br, tr, t)
+                fr = interp(br, tr, t_next)
+                bc_l = interp(cb, ct, t)
+                bc_r = interp(cb, ct, t_next)
+            poly = [fl, fr, bc_r, bc_l]
+            conn.execute("UPDATE lotes SET polygon_coords=? WHERE id=?", (json.dumps(poly), row["id"]))
+            updated += 1
+        return updated
+
+    cl = interp(tl, bl, 0.5)
+    cr = interp(tr, br, 0.5)
+    top_count = (count + 1) // 2
+    updated = 0
+    for i, row in enumerate(lots):
+        if i < top_count:
+            t = i / top_count
+            t_next = (i + 1) / top_count
+            fl = interp(tl, tr, t)
+            fr = interp(tl, tr, t_next)
+            bc_l = interp(cl, cr, t)
+            bc_r = interp(cl, cr, t_next)
+        else:
+            bi = i - top_count
+            bcount = count - top_count
+            t = bi / bcount if bcount > 0 else 0
+            t_next = (bi + 1) / bcount if bcount > 0 else 1
+            fl = interp(bl, br, t)
+            fr = interp(bl, br, t_next)
+            bc_l = interp(cl, cr, t)
+            bc_r = interp(cl, cr, t_next)
+        poly = [fl, fr, bc_r, bc_l]
+        conn.execute("UPDATE lotes SET polygon_coords=? WHERE id=?", (json.dumps(poly), row["id"]))
+        updated += 1
+    return updated
+
+
+
+
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "controle-loteamentos-dev-key")
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
@@ -126,6 +203,10 @@ def init_db():
             conn.execute("ALTER TABLE lotes ADD COLUMN tamanho_direita DOUBLE PRECISION DEFAULT 0")
         except Exception as e:
             print(f"[migracao] tamanho_direita ignorado: {e}")
+        try:
+            conn.execute("ALTER TABLE quadras ADD COLUMN layout TEXT DEFAULT 'horizontal'")
+        except Exception as e:
+            print(f"[migracao] layout ignorado: {e}")
 
 
 
@@ -372,7 +453,7 @@ def loteamentos_mapa(id):
         lotes = conn.execute("""
             SELECT l.*, q.identificacao as quadra_nome
             FROM lotes l JOIN quadras q ON q.id = l.quadra_id
-            WHERE q.loteamento_id=? ORDER BY q.identificacao, l.numero
+            WHERE q.loteamento_id=? ORDER BY q.identificacao, CAST(l.numero AS INTEGER)
         """, (id,)).fetchall()
     return render_template("loteamentos/mapa.html", loteamento=loteamento, quadras=quadras, lotes=lotes)
 
@@ -412,7 +493,19 @@ def api_quadras_polygon(id):
     polygon_coords = json.dumps(data.get("polygon_coords", []))
     with get_db() as conn:
         conn.execute("UPDATE quadras SET polygon_coords=? WHERE id=? AND loteamento_id=?", (polygon_coords, id, la))
-    return jsonify({"ok": True})
+        updated = recalcular_lotes_por_quadra(conn, id)
+    return jsonify({"ok": True, "lotes_atualizados": updated})
+
+
+@app.route("/api/quadras/<int:id>/recalcular-lotes", methods=["POST"])
+@login_required
+def api_quadras_recalcular_lotes(id):
+    la = session.get("loteamento_ativo")
+    if not la:
+        return jsonify({"erro": "Nenhum loteamento ativo"}), 400
+    with get_db() as conn:
+        updated = recalcular_lotes_por_quadra(conn, id)
+    return jsonify({"ok": True, "atualizados": updated})
 
 
 @app.route("/api/quadras/<int:id>/mover", methods=["PUT"])
@@ -544,7 +637,7 @@ def api_mapa_dados():
             JOIN quadras q ON q.id=l.quadra_id
             LEFT JOIN pessoas p ON p.id=l.dono_pessoa_id
             WHERE q.loteamento_id=?
-            ORDER BY q.identificacao, l.numero
+            ORDER BY q.identificacao, CAST(l.numero AS INTEGER)
         """, (la,)).fetchall()
     return jsonify({
         "quadras": [dict(q) for q in quadras],
@@ -588,10 +681,11 @@ def quadras_novo():
                 loteamentos = conn.execute("SELECT * FROM loteamentos WHERE id=?", (la,)).fetchall()
                 return render_template("quadras/form.html", registro=None, loteamentos=loteamentos, erro="Identificação é obrigatória.")
             polygon_coords = request.form.get("polygon_coords", "[]")
+            layout = request.form.get("layout", "horizontal")
             conn.execute("""
-                INSERT INTO quadras (loteamento_id, identificacao, qtd_lotes, rua_norte, rua_sul, rua_leste, rua_oeste, polygon_coords)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (loteamento_id, identificacao, qtd_lotes, rua_norte, rua_sul, rua_leste, rua_oeste, polygon_coords))
+                INSERT INTO quadras (loteamento_id, identificacao, qtd_lotes, rua_norte, rua_sul, rua_leste, rua_oeste, polygon_coords, layout)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (loteamento_id, identificacao, qtd_lotes, rua_norte, rua_sul, rua_leste, rua_oeste, polygon_coords, layout))
             conn.execute("UPDATE loteamentos SET qtd_quadras=(SELECT COUNT(*) FROM quadras WHERE loteamento_id=?) WHERE id=?", (loteamento_id, loteamento_id))
             return redirect(url_for("quadras_lista"))
         loteamentos = conn.execute("SELECT * FROM loteamentos WHERE id=?", (la,)).fetchall()
@@ -611,10 +705,12 @@ def quadras_editar(id):
             rua_leste = request.form.get("rua_leste", "").strip()
             rua_oeste = request.form.get("rua_oeste", "").strip()
             polygon_coords = request.form.get("polygon_coords", "[]")
+            layout = request.form.get("layout", "horizontal")
             conn.execute("""
-                UPDATE quadras SET loteamento_id=?, identificacao=?, qtd_lotes=?, rua_norte=?, rua_sul=?, rua_leste=?, rua_oeste=?, polygon_coords=?
+                UPDATE quadras SET loteamento_id=?, identificacao=?, qtd_lotes=?, rua_norte=?, rua_sul=?, rua_leste=?, rua_oeste=?, polygon_coords=?, layout=?
                 WHERE id=?
-            """, (la, identificacao, qtd_lotes, rua_norte, rua_sul, rua_leste, rua_oeste, polygon_coords, id))
+            """, (la, identificacao, qtd_lotes, rua_norte, rua_sul, rua_leste, rua_oeste, polygon_coords, layout, id))
+            recalcular_lotes_por_quadra(conn, id)
             return redirect(url_for("quadras_lista"))
         reg = conn.execute("SELECT * FROM quadras WHERE id=? AND loteamento_id=?", (id, la)).fetchone()
         if not reg:
@@ -656,7 +752,7 @@ def lotes_lista():
         if quadra_id:
             sql += " AND l.quadra_id=?"
             params.append(quadra_id)
-        sql += " ORDER BY q.identificacao, l.numero"
+        sql += " ORDER BY q.identificacao, CAST(l.numero AS INTEGER)"
         rows = conn.execute(sql, params).fetchall()
         quadras = conn.execute("""SELECT q.*, l.nome as loteamento_nome
                                   FROM quadras q
@@ -757,7 +853,7 @@ def lotes_editar(id):
                                       FROM lotes l
                                       JOIN quadras q ON q.id=l.quadra_id
                                       WHERE q.loteamento_id=? AND l.id!=?
-                                      ORDER BY q.identificacao, l.numero""", (la, id)).fetchall()
+                                      ORDER BY q.identificacao, CAST(l.numero AS INTEGER)""", (la, id)).fetchall()
         limitrofes_ids = json.loads(reg["lotes_limitrofes"] or "[]")
         loteamentos = conn.execute("SELECT * FROM loteamentos WHERE id=?", (la,)).fetchall()
     return render_template("lotes/form.html", registro=reg, quadras=quadras, todos_lotes=todos_lotes, pessoas=pessoas, limitrofes_ids=limitrofes_ids, loteamentos=loteamentos, erro=None)
@@ -824,7 +920,7 @@ def permutas_novo():
                 lotes = conn.execute("""SELECT l.*, q.identificacao as quadra_nome
                                         FROM lotes l JOIN quadras q ON q.id=l.quadra_id
                                         WHERE q.loteamento_id=?
-                                        ORDER BY q.identificacao, l.numero""", (la,)).fetchall()
+                                        ORDER BY q.identificacao, CAST(l.numero AS INTEGER)""", (la,)).fetchall()
                 return render_template("permutas/form.html", registro=None, lotes=lotes, pessoas=pessoas, erro="Preencha todos os campos obrigatórios.")
             permuta_id = conn.execute("""
                 INSERT INTO permutas (data, dono_anterior_pessoa_id, dono_anterior_nome, dono_anterior_cpf, dono_posterior_pessoa_id, dono_posterior_nome, dono_posterior_cpf, observacao)
@@ -838,7 +934,7 @@ def permutas_novo():
         lotes = conn.execute("""SELECT l.*, q.identificacao as quadra_nome
                                 FROM lotes l JOIN quadras q ON q.id=l.quadra_id
                                 WHERE q.loteamento_id=?
-                                ORDER BY q.identificacao, l.numero""", (la,)).fetchall()
+                                ORDER BY q.identificacao, CAST(l.numero AS INTEGER)""", (la,)).fetchall()
     return render_template("permutas/form.html", registro=None, lotes=lotes, pessoas=pessoas, erro=None)
 
 
@@ -960,7 +1056,7 @@ def vendas_nova():
                 lotes = conn.execute("""SELECT l.*, q.identificacao as quadra_nome
                                         FROM lotes l JOIN quadras q ON q.id=l.quadra_id
                                         WHERE q.loteamento_id=? AND l.status='disponivel'
-                                        ORDER BY q.identificacao, l.numero""", (la,)).fetchall()
+                                        ORDER BY q.identificacao, CAST(l.numero AS INTEGER)""", (la,)).fetchall()
                 formas = conn.execute("SELECT * FROM formas_pagamento ORDER BY nome").fetchall()
                 return render_template("vendas/form.html", registro=None, lotes=lotes, formas=formas, pessoas=pessoas, erro="Preencha todos os campos obrigatórios.")
             venda_id = conn.execute("""
@@ -984,7 +1080,7 @@ def vendas_nova():
         lotes = conn.execute("""SELECT l.*, q.identificacao as quadra_nome
                                 FROM lotes l JOIN quadras q ON q.id=l.quadra_id
                                 WHERE q.loteamento_id=? AND l.status='disponivel'
-                                ORDER BY q.identificacao, l.numero""", (la,)).fetchall()
+                                ORDER BY q.identificacao, CAST(l.numero AS INTEGER)""", (la,)).fetchall()
         formas = conn.execute("SELECT * FROM formas_pagamento ORDER BY nome").fetchall()
     return render_template("vendas/form.html", registro=None, lotes=lotes, formas=formas, pessoas=pessoas, erro=None)
 
@@ -1477,7 +1573,7 @@ def relatorios_pessoa(id):
             JOIN quadras q ON q.id=l.quadra_id
             JOIN loteamentos lotea ON lotea.id=q.loteamento_id
             WHERE l.dono_pessoa_id=? AND q.loteamento_id=?
-            ORDER BY q.identificacao, l.numero
+            ORDER BY q.identificacao, CAST(l.numero AS INTEGER)
         """, (id, la)).fetchall()
         vendas_vendedor = conn.execute("""
             SELECT v.*, l.numero as lote_numero, q.identificacao as quadra_nome

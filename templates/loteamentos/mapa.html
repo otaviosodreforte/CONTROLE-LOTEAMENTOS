@@ -177,14 +177,28 @@ document.addEventListener("DOMContentLoaded", function() {
                 }
             });
             map.on(L.Draw.Event.EDITED, function() {
-                const layers = [];
-                drawnItems.eachLayer(function(l){ layers.push(l); });
-                layers.forEach(function(layer) {
-                    const tipo = layer.options.tipo;
-                    const id = layer.options.id;
-                    const pts = layer.getLatLngs()[0].map(function(p){ return [p.lat, p.lng]; });
-                    if (tipo === "quadra") fetch("/api/quadras/" + id + "/polygon", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ polygon_coords: pts }) });
-                    else if (tipo === "lote") fetch("/api/lotes/" + id + "/polygon", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ polygon_coords: pts }) });
+                var quadrasSalvas = [];
+                drawnItems.eachLayer(function(l) {
+                    if (l.options.tipo !== "quadra") return;
+                    var pts = l.getLatLngs()[0].map(function(p) { return [p.lat, p.lng]; });
+                    quadrasSalvas.push(
+                        fetch("/api/quadras/" + l.options.id + "/polygon", {
+                            method: "PUT", headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ polygon_coords: pts })
+                        })
+                    );
+                });
+                Promise.all(quadrasSalvas).then(function() {
+                    var quadraIds = [];
+                    drawnItems.eachLayer(function(l) {
+                        if (l.options.tipo === "quadra") quadraIds.push(l.options.id);
+                    });
+                    var recalc = quadraIds.map(function(qid) {
+                        return fetch("/api/quadras/" + qid + "/recalcular-lotes", { method: "POST" });
+                    });
+                    return Promise.all(recalc);
+                }).then(function() {
+                    carregarDados(function() { renderizarQuadras(); renderizarLotes(); });
                 });
             });
             map.on(L.Draw.Event.DELETED, function() {});
@@ -438,29 +452,32 @@ document.addEventListener("DOMContentLoaded", function() {
             } else {
                 btn.style.background = "#e65100";
                 btn.textContent = "✏️ Editar";
-                // Salvar alteracoes pendentes
-                var layers = [];
-                drawnItems.eachLayer(function(l) { layers.push(l); });
-                layers.forEach(function(layer) {
-                    var tipo = layer.options.tipo;
-                    var id = layer.options.id;
-                    if (!tipo || !id) return;
-                    var pts = layer.getLatLngs()[0].map(function(p) { return [p.lat, p.lng]; });
-                    if (tipo === "quadra") {
-                        fetch("/api/quadras/" + id + "/polygon", {
-                            method: "PUT", headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ polygon_coords: pts })
-                        }).catch(function(){});
-                    } else if (tipo === "lote") {
-                        fetch("/api/lotes/" + id + "/polygon", {
-                            method: "PUT", headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ polygon_coords: pts })
-                        }).catch(function(){});
-                    }
+                // Salvar quadras e recalcular lotes
+                var quadraIds = [];
+                var saves = [];
+                drawnItems.eachLayer(function(l) {
+                    if (l.options.tipo !== "quadra") return;
+                    var pts = l.getLatLngs()[0].map(function(p) { return [p.lat, p.lng]; });
+                    quadraIds.push(l.options.id);
+                    saves.push(fetch("/api/quadras/" + l.options.id + "/polygon", {
+                        method: "PUT", headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ polygon_coords: pts })
+                    }));
                 });
-                drawnItems.clearLayers();
-                mostrarStatus("Polígonos atualizados!", "sucesso");
-                carregarDados(function() { renderizarQuadras(); renderizarLotes(); });
+                Promise.all(saves).then(function() {
+                    var recalc = quadraIds.map(function(qid) {
+                        return fetch("/api/quadras/" + qid + "/recalcular-lotes", { method: "POST" });
+                    });
+                    return Promise.all(recalc);
+                }).then(function() {
+                    drawnItems.clearLayers();
+                    mostrarStatus("Polígonos atualizados!", "sucesso");
+                    carregarDados(function() { renderizarQuadras(); renderizarLotes(); });
+                }).catch(function() {
+                    drawnItems.clearLayers();
+                    mostrarStatus("Erro ao salvar polígonos", "erro");
+                    carregarDados(function() { renderizarQuadras(); renderizarLotes(); });
+                });
             }
         };
 

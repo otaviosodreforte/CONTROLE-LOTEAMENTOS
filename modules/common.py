@@ -138,6 +138,7 @@ def _init_pg(conn):
             rua_norte TEXT DEFAULT '', rua_sul TEXT DEFAULT '',
             rua_leste TEXT DEFAULT '', rua_oeste TEXT DEFAULT '',
             polygon_coords TEXT DEFAULT '[]',
+            layout TEXT DEFAULT 'horizontal',
             criado_em TIMESTAMP NOT NULL DEFAULT NOW()
         );
         CREATE TABLE IF NOT EXISTS lotes (
@@ -242,6 +243,7 @@ def _init_sqlite(conn):
             rua_norte TEXT DEFAULT '', rua_sul TEXT DEFAULT '',
             rua_leste TEXT DEFAULT '', rua_oeste TEXT DEFAULT '',
             polygon_coords TEXT DEFAULT '[]',
+            layout TEXT DEFAULT 'horizontal',
             criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
         );
         CREATE TABLE IF NOT EXISTS lotes (

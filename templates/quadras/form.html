@@ -10,6 +10,11 @@
             <input type="text" name="identificacao" value="{{ registro.identificacao if registro else '' }}" required>
             <label>Quantidade de Lotes</label>
             <input type="number" name="qtd_lotes" value="{{ registro.qtd_lotes if registro else 0 }}">
+            <label>Layout dos lotes</label>
+            <select name="layout" style="padding:6px;border:1px solid #ccc;border-radius:4px;width:100%">
+                <option value="horizontal" {% if registro and registro.layout == 'horizontal' %}selected{% endif %}>Horizontal (fileiras cima/baixo)</option>
+                <option value="vertical" {% if registro and registro.layout == 'vertical' %}selected{% endif %}>Vertical (colunas esquerda/direita)</option>
+            </select>
             <label>Rua Limite Norte</label>
             <input type="text" name="rua_norte" value="{{ registro.rua_norte if registro else '' }}">
             <label>Rua Limite Sul</label>
@@ -72,6 +77,18 @@
     });
     map.on(L.Draw.Event.DELETED, function() {
         document.getElementById("polygon_coords").value = "[]";
+    });
+
+    // Garantir que o polygon_coords esteja atualizado antes de enviar o formulário
+    document.querySelector('.form').addEventListener('submit', function() {
+        var layers = [];
+        drawnItems.eachLayer(function(l) { layers.push(l); });
+        if (layers.length > 0) {
+            var pts = layers[0].getLatLngs()[0].map(function(p) { return [p.lat, p.lng]; });
+            document.getElementById("polygon_coords").value = JSON.stringify(pts);
+        } else {
+            document.getElementById("polygon_coords").value = "[]";
+        }
     });
 
     function limparPoligono() {
