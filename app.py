@@ -400,9 +400,15 @@ def api_quadras_nova():
     return jsonify({"id": qid, "identificacao": quadra["identificacao"], "polygon_coords": quadra["polygon_coords"]})
 
 
-@app.route("/api/quadras/<int:id>/polygon", methods=["PUT"])
+@app.route("/api/quadras/<int:id>/polygon", methods=["GET", "PUT"])
 @login_required
 def api_quadras_polygon(id):
+    if request.method == "GET":
+        with get_db() as conn:
+            q = conn.execute("SELECT polygon_coords FROM quadras WHERE id=?", (id,)).fetchone()
+            if not q:
+                return jsonify({"erro": "Quadra não encontrada"}), 404
+            return jsonify({"polygon_coords": q["polygon_coords"] or "[]"})
     la = session.get("loteamento_ativo")
     if not la:
         return jsonify({"erro": "Nenhum loteamento ativo"}), 400
