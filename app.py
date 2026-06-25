@@ -17,6 +17,37 @@ except ImportError:
 
 from modules.common import get_db, login_required, permissao_required, DB_PATH, RECIBOS_DIR, USING_PG, _init_pg
 
+def gerar_poligono_trapezio(frente, fundo, esquerda, direita, coords_atuais):
+    if not coords_atuais or len(coords_atuais) < 4:
+        return coords_atuais
+    if not (frente and fundo):
+        return coords_atuais
+    p1, p2, p3, p4 = coords_atuais[:4]
+    lat0 = (p1[0] + p2[0] + p3[0] + p4[0]) / 4
+    cos_lat = math.cos(math.radians(lat0))
+    dlat = p3[0] - p2[0]
+    dlng = p3[1] - p2[1]
+    depth_m = math.sqrt((dlat * 111000)**2 + (dlng * 111000 * cos_lat)**2)
+    if depth_m < 0.001:
+        return coords_atuais
+    du_lat = dlat / depth_m / 111000.0
+    du_lng = dlng / depth_m / (111000.0 * cos_lat)
+    wu_lat = -du_lng
+    wu_lng = du_lat
+    esq = esquerda or depth_m
+    dire = direita or depth_m
+    mf_lat = (p1[0] + p2[0]) / 2
+    mf_lng = (p1[1] + p2[1]) / 2
+    p1n_lat = mf_lat + wu_lat * (frente / 2) / 111000.0
+    p1n_lng = mf_lng + wu_lng * (frente / 2) / (111000.0 * cos_lat)
+    p2n_lat = mf_lat - wu_lat * (frente / 2) / 111000.0
+    p2n_lng = mf_lng - wu_lng * (frente / 2) / (111000.0 * cos_lat)
+    p4n_lat = p1n_lat + du_lat * esq
+    p4n_lng = p1n_lng + du_lng * esq
+    p3n_lat = p2n_lat + du_lat * dire
+    p3n_lng = p2n_lng + du_lng * dire
+    return [[p1n_lat, p1n_lng], [p2n_lat, p2n_lng], [p3n_lat, p3n_lng], [p4n_lat, p4n_lng]]
+
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "controle-loteamentos-dev-key")
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
@@ -658,6 +689,13 @@ def lotes_novo():
                                           ORDER BY q.identificacao""", (la,)).fetchall()
                 loteamentos = conn.execute("SELECT * FROM loteamentos WHERE id=?", (la,)).fetchall()
                 return render_template("lotes/form.html", registro=None, quadras=quadras, pessoas=pessoas, loteamentos=loteamentos, erro="Quadra é obrigatória.")
+            if (not polygon_coords or polygon_coords == "[]") and tamanho_frente and tamanho_fundo:
+                ref = conn.execute("""SELECT polygon_coords FROM lotes
+                                      WHERE quadra_id=? AND polygon_coords!='[]' AND polygon_coords IS NOT NULL
+                                      ORDER BY numero LIMIT 1""", (quadra_id,)).fetchone()
+                if ref:
+                    coords_ref = json.loads(ref["polygon_coords"])
+                    polygon_coords = json.dumps(gerar_poligono_trapezio(tamanho_frente, tamanho_fundo, tamanho_esquerda, tamanho_direita, coords_ref))
             conn.execute("""
                 INSERT INTO lotes (quadra_id, numero, tamanho_frente, tamanho_fundo, tamanho_esquerda, tamanho_direita, dono_pessoa_id, dono_nome, dono_cpf, dono_contato, polygon_coords)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -691,6 +729,12 @@ def lotes_editar(id):
             lotes_limitrofes = json.dumps(request.form.getlist("lotes_limitrofes"))
             status = request.form.get("status", "disponivel")
             polygon_coords = request.form.get("polygon_coords", "[]")
+            if (not polygon_coords or polygon_coords == "[]") and tamanho_frente and tamanho_fundo:
+                reg_poly = conn.execute("SELECT polygon_coords FROM lotes WHERE id=?", (id,)).fetchone()
+                if reg_poly:
+                    coords_atuais = json.loads(reg_poly["polygon_coords"] or "[]")
+                    if len(coords_atuais) >= 4:
+                        polygon_coords = json.dumps(gerar_poligono_trapezio(tamanho_frente, tamanho_fundo, tamanho_esquerda, tamanho_direita, coords_atuais))
             conn.execute("""
                 UPDATE lotes SET quadra_id=?, numero=?, tamanho_frente=?, tamanho_fundo=?, tamanho_esquerda=?, tamanho_direita=?,
                 dono_pessoa_id=?, dono_nome=?, dono_cpf=?, dono_contato=?, lotes_limitrofes=?, status=?, polygon_coords=?

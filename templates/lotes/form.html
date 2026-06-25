@@ -72,7 +72,7 @@
         document.getElementById("dono_cpf").value = opt.dataset.cpf || "";
         document.getElementById("dono_contato").value = opt.dataset.contato || "";
     }
-    document.querySelectorAll("[name=tamanho_frente], [name=tamanho_fundo], [name=tamanho_esquerda], [name=tamanho_direita]").forEach(el => el?.addEventListener("input", calc));
+    document.querySelectorAll("[name=tamanho_frente], [name=tamanho_fundo], [name=tamanho_esquerda], [name=tamanho_direita]").forEach(el => el?.addEventListener("input", function() { calc(); document.getElementById("polygon_coords").value = "[]"; }));
     function calc() {
         const f = parseFloat(document.querySelector("[name=tamanho_frente]")?.value || 0);
         const fu = parseFloat(document.querySelector("[name=tamanho_fundo]")?.value || 0);
