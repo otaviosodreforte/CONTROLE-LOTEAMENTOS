@@ -22,6 +22,7 @@
             <td class="acoes">
                 <a href="{{ url_for('loteamentos_editar', id=r.id) }}" class="btn editar">✏️</a>
                 <a href="{{ url_for('loteamentos_mapa', id=r.id) }}" class="btn" style="background:#43a047;color:#fff">🗺️ Mapa</a>
+                <a href="{{ url_for('loteamentos_croqui', id=r.id) }}" class="btn" style="background:#6a1b9a;color:#fff">🖼️ Croqui</a>
                 <a href="{{ url_for('loteamentos_excluir', id=r.id) }}" class="btn excluir" onclick="return confirm('Excluir loteamento?')">🗑️</a>
             </td>
         </tr>

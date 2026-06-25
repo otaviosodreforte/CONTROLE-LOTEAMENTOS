@@ -11,3 +11,8 @@ recibos/
 *_pid.txt
 *.pdf
 croqui_extraido.jpeg
+croqui_*_processed.png
+croqui_embedded_*.png
+croqui_pdf_rendered.png
+*.traineddata
+node_modules/
