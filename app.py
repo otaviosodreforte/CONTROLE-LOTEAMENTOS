@@ -30,18 +30,18 @@ def gerar_poligono_trapezio(frente, fundo, esquerda, direita, coords_atuais):
     depth_m = math.sqrt((dlat * 111000)**2 + (dlng * 111000 * cos_lat)**2)
     if depth_m < 0.001:
         return coords_atuais
-    du_lat = dlat / depth_m / 111000.0
-    du_lng = dlng / depth_m / (111000.0 * cos_lat)
-    wu_lat = -du_lng
-    wu_lng = du_lat
+    du_lat = dlat / depth_m
+    du_lng = dlng / depth_m
+    wu_lat = -dlng * cos_lat / depth_m
+    wu_lng = dlat / (depth_m * cos_lat)
     esq = esquerda or depth_m
     dire = direita or depth_m
     mf_lat = (p1[0] + p2[0]) / 2
     mf_lng = (p1[1] + p2[1]) / 2
-    p1n_lat = mf_lat + wu_lat * (frente / 2) / 111000.0
-    p1n_lng = mf_lng + wu_lng * (frente / 2) / (111000.0 * cos_lat)
-    p2n_lat = mf_lat - wu_lat * (frente / 2) / 111000.0
-    p2n_lng = mf_lng - wu_lng * (frente / 2) / (111000.0 * cos_lat)
+    p1n_lat = mf_lat + wu_lat * (frente / 2)
+    p1n_lng = mf_lng + wu_lng * (frente / 2)
+    p2n_lat = mf_lat - wu_lat * (frente / 2)
+    p2n_lng = mf_lng - wu_lng * (frente / 2)
     p4n_lat = p1n_lat + du_lat * esq
     p4n_lng = p1n_lng + du_lng * esq
     p3n_lat = p2n_lat + du_lat * dire
