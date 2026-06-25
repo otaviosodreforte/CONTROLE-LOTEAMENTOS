@@ -33,6 +33,7 @@
         <a href="{{ url_for('loteamentos_lista') }}" class="btn cancelar">← Voltar</a>
         <button class="btn editar" onclick="salvarTudo()">💾 Recarregar</button>
         <button id="btnMover" class="btn" onclick="toggleMover()" style="background:#ff9800;color:#fff">✋ Mover</button>
+        <button id="btnEditar" class="btn" onclick="toggleEditMode()" style="background:#e65100;color:#fff">✏️ Editar</button>
         <button id="btnRot" class="btn" onclick="toggleRotacionar()" style="background:#9c27b0;color:#fff">🔄 Girar</button>
         <button id="btnPonto" class="btn" onclick="togglePonto()" style="background:#2196f3;color:#fff">📌 Marcação</button>
     </div>
@@ -398,6 +399,70 @@ document.addEventListener("DOMContentLoaded", function() {
                 mk.bindPopup(html);
             });
         }
+
+        // ─── Editar Poligonos ────────────────────────────────────
+        var editModeAtivo = false;
+
+        window.toggleEditMode = function() {
+            editModeAtivo = !editModeAtivo;
+            var btn = document.getElementById("btnEditar");
+            if (editModeAtivo) {
+                if (moverAtivo) toggleMover();
+                if (rotAtivo) toggleRotacionar();
+                if (pontoAtivo) togglePonto();
+                btn.style.background = "#f44336";
+                btn.textContent = "🔒 Travar";
+                drawnItems.clearLayers();
+                // Copiar quadras para drawnItems
+                quadraLayer.eachLayer(function(l) {
+                    if (l.options.tipo !== "quadra") return;
+                    var pts = l.getLatLngs()[0].map(function(p) { return [p.lat, p.lng]; });
+                    var copy = L.polygon(pts, {
+                        color: "#e65100", weight: 3, fillColor: "#e65100", fillOpacity: 0.1,
+                        id: l.options.id, tipo: "quadra"
+                    }).addTo(drawnItems);
+                });
+                // Copiar lotes para drawnItems
+                loteLayer.eachLayer(function(l) {
+                    if (l.options.tipo !== "lote") return;
+                    var pts = l.getLatLngs()[0].map(function(p) { return [p.lat, p.lng]; });
+                    var copy = L.polygon(pts, {
+                        color: "#e65100", weight: 2, fillColor: "#e65100", fillOpacity: 0.08,
+                        id: l.options.id, tipo: "lote"
+                    }).addTo(drawnItems);
+                });
+                setTimeout(function() {
+                    var editBtn = document.querySelector(".leaflet-draw-edit-edit");
+                    if (editBtn) editBtn.click();
+                }, 100);
+            } else {
+                btn.style.background = "#e65100";
+                btn.textContent = "✏️ Editar";
+                // Salvar alteracoes pendentes
+                var layers = [];
+                drawnItems.eachLayer(function(l) { layers.push(l); });
+                layers.forEach(function(layer) {
+                    var tipo = layer.options.tipo;
+                    var id = layer.options.id;
+                    if (!tipo || !id) return;
+                    var pts = layer.getLatLngs()[0].map(function(p) { return [p.lat, p.lng]; });
+                    if (tipo === "quadra") {
+                        fetch("/api/quadras/" + id + "/polygon", {
+                            method: "PUT", headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ polygon_coords: pts })
+                        }).catch(function(){});
+                    } else if (tipo === "lote") {
+                        fetch("/api/lotes/" + id + "/polygon", {
+                            method: "PUT", headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ polygon_coords: pts })
+                        }).catch(function(){});
+                    }
+                });
+                drawnItems.clearLayers();
+                mostrarStatus("Polígonos atualizados!", "sucesso");
+                carregarDados(function() { renderizarQuadras(); renderizarLotes(); });
+            }
+        };
 
         function carregarPontos() {
             fetch("/api/pontos")
