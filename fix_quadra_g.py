@@ -16,24 +16,27 @@ try:
 except Exception as e:
     print(f"Layout column already exists: {e}")
 
-# 1. Delete all lots of Quadra G
+# 1. Restore original quadra polygon
+# tl lat adjusted from -11.804030 to -11.803941 (matching tr) for horizontal top edge
+ORIGINAL_POLYGON = "[[-11.803940793246685, -42.06250626485259], [-11.803940793246685, -42.061954046861004], [-11.804751604057495, -42.061954046861004], [-11.804751604057495, -42.06250626485259]]"
+cur.execute("UPDATE quadras SET polygon_coords=%s WHERE id=%s", (ORIGINAL_POLYGON, QID))
+print("Restored original quadra polygon")
+
+# 2. Delete all lots of Quadra G
 cur.execute("DELETE FROM lotes WHERE quadra_id=%s", (QID,))
 print(f"Deleted {cur.rowcount} lots")
 
-# 2. Set layout to vertical
+# 3. Set layout to vertical
 cur.execute("UPDATE quadras SET layout=%s WHERE id=%s", ("vertical", QID))
 print("Set layout=vertical")
 
-# 3. Recreate lots with correct numero (with leading zeros)
+# 4. Recreate lots: G01-G08 left, G09-G16 right (same height), G17 full-width bottom
 lotes_data = []
-# Left side: 01-08
-for i in range(8):
-    num = f"{i+1:02d}"
-    lotes_data.append((QID, num, 10, 10, 30, 30))
-# Right side: 09-17
-for i in range(9, 18):
-    num = f"{i:02d}"
-    lotes_data.append((QID, num, 10, 10, 30, 30))
+for i in range(1, 9):
+    lotes_data.append((QID, f"{i:02d}", 10, 10, 30, 30))
+for i in range(9, 17):
+    lotes_data.append((QID, f"{i:02d}", 10, 10, 30, 30))
+lotes_data.append((QID, "17", 10, 10, 30, 30))
 
 for qid, num, frente, fundo, esq, dir_ in lotes_data:
     cur.execute("""
@@ -45,7 +48,7 @@ cur.execute("SELECT COUNT(*) FROM lotes WHERE quadra_id=%s", (QID,))
 count = cur.fetchone()[0]
 print(f"Inserted {count} lots")
 
-# 4. Load the recalculo function from app.py
+# 5. Load the recalculo function from app.py
 from app import recalcular_lotes_por_quadra
 
 # We need a connection wrapper compatible with the app's get_db()
@@ -65,7 +68,7 @@ wrapper = PgWrapper(conn)
 updated = recalcular_lotes_por_quadra(wrapper, QID)
 print(f"Recalculo completed: {updated} lots updated")
 
-# 5. Verify
+# 6. Verify
 cur.execute("SELECT numero FROM lotes WHERE quadra_id=%s ORDER BY CAST(numero AS integer)", (QID,))
 nums = [r[0] for r in cur.fetchall()]
 print(f"Lots in order: {nums}")
