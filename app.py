@@ -120,16 +120,16 @@ def init_db():
             conn.execute("INSERT INTO formas_pagamento (nome) VALUES (?) ON CONFLICT DO NOTHING", (fp,))
         try:
             conn.execute("ALTER TABLE lotes ADD COLUMN tamanho_esquerda DOUBLE PRECISION DEFAULT 0")
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[migracao] tamanho_esquerda ignorado: {e}")
         try:
             conn.execute("ALTER TABLE lotes ADD COLUMN tamanho_direita DOUBLE PRECISION DEFAULT 0")
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[migracao] tamanho_direita ignorado: {e}")
         try:
             conn.execute("ALTER TABLE loteamentos ADD COLUMN croqui_data TEXT DEFAULT '{}'")
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[migracao] croqui_data ignorado: {e}")
 
 
 init_db()

@@ -39,13 +39,22 @@ if USING_PG:
             cur.close()
 
         def commit(self):
-            self._conn.commit()
+            try:
+                self._conn.commit()
+            except Exception:
+                pass
 
         def rollback(self):
-            self._conn.rollback()
+            try:
+                self._conn.rollback()
+            except Exception:
+                pass
 
         def close(self):
-            self._conn.close()
+            try:
+                self._conn.close()
+            except Exception:
+                pass
 
         def __enter__(self):
             return self
@@ -56,13 +65,20 @@ if USING_PG:
                     self._conn.commit()
                 except Exception:
                     self._conn.rollback()
-                    raise
             else:
-                self._conn.rollback()
-            self._conn.close()
+                try:
+                    self._conn.rollback()
+                except Exception:
+                    pass
+            try:
+                self._conn.close()
+            except Exception:
+                pass
 
     def get_db():
-        return _PgConnection(psycopg2.connect(DATABASE_URL))
+        conn = psycopg2.connect(DATABASE_URL)
+        conn.autocommit = True
+        return _PgConnection(conn)
 
 else:
     import sqlite3
