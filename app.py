@@ -411,53 +411,76 @@ def loteamentos_croqui(id):
 @app.route("/api/croqui/upload/<int:id>", methods=["POST"])
 @login_required
 def api_croqui_upload(id):
-    if "file" not in request.files:
-        return jsonify({"erro": "Nenhum arquivo enviado"}), 400
-    f = request.files["file"]
-    if not f.filename:
-        return jsonify({"erro": "Nome de arquivo vazio"}), 400
-    ext = os.path.splitext(f.filename)[1].lower()
-    if ext not in (".jpg", ".jpeg", ".png", ".gif", ".webp"):
-        return jsonify({"erro": "Formato não suportado. Use JPG, PNG, GIF ou WEBP"}), 400
-    import uuid
-    nome_arquivo = f"{uuid.uuid4().hex}{ext}"
-    f.save(os.path.join(CROQUI_DIR, nome_arquivo))
-    with get_db() as conn:
-        data = conn.execute("SELECT croqui_data FROM loteamentos WHERE id=?", (id,)).fetchone()
-        cd = json.loads(data["croqui_data"] or "{}")
-        cd["image"] = nome_arquivo
-        conn.execute("UPDATE loteamentos SET croqui_data=? WHERE id=?", (json.dumps(cd), id))
-    return jsonify({"ok": True, "image": nome_arquivo})
+    try:
+        if "file" not in request.files:
+            return jsonify({"erro": "Nenhum arquivo enviado"}), 400
+        f = request.files["file"]
+        if not f.filename:
+            return jsonify({"erro": "Nome de arquivo vazio"}), 400
+        ext = os.path.splitext(f.filename)[1].lower()
+        if ext not in (".jpg", ".jpeg", ".png", ".gif", ".webp"):
+            return jsonify({"erro": "Formato não suportado. Use JPG, PNG, GIF ou WEBP"}), 400
+        import uuid
+        nome_arquivo = f"{uuid.uuid4().hex}{ext}"
+        os.makedirs(CROQUI_DIR, exist_ok=True)
+        f.save(os.path.join(CROQUI_DIR, nome_arquivo))
+        with get_db() as conn:
+            lot = conn.execute("SELECT * FROM loteamentos WHERE id=?", (id,)).fetchone()
+            if not lot:
+                return jsonify({"erro": "Loteamento não encontrado"}), 404
+            data = lot["croqui_data"] if "croqui_data" in lot.keys() else "{}"
+            cd = json.loads(data or "{}")
+            cd["image"] = nome_arquivo
+            conn.execute("UPDATE loteamentos SET croqui_data=? WHERE id=?", (json.dumps(cd), id))
+        return jsonify({"ok": True, "image": nome_arquivo})
+    except Exception as e:
+        import traceback
+        return jsonify({"erro": f"Erro no upload: {str(e)}", "detalhe": traceback.format_exc()}), 500
 
 
 @app.route("/api/croqui/dados/<int:id>")
 @login_required
 def api_croqui_dados(id):
-    with get_db() as conn:
-        data = conn.execute("SELECT croqui_data FROM loteamentos WHERE id=?", (id,)).fetchone()
-        if not data:
-            return jsonify({"erro": "Loteamento não encontrado"}), 404
-        cd = json.loads(data["croqui_data"] or "{}")
-    return jsonify(cd)
+    try:
+        with get_db() as conn:
+            lot = conn.execute("SELECT * FROM loteamentos WHERE id=?", (id,)).fetchone()
+            if not lot:
+                return jsonify({"erro": "Loteamento não encontrado"}), 404
+            cd = "{}"
+            try:
+                cd = lot["croqui_data"] if "croqui_data" in lot.keys() else "{}"
+            except (IndexError, KeyError):
+                cd = "{}"
+            return jsonify(json.loads(cd or "{}"))
+    except Exception as e:
+        import traceback
+        return jsonify({"erro": f"Erro ao carregar dados: {str(e)}", "detalhe": traceback.format_exc()}), 500
 
 
 @app.route("/api/croqui/salvar/<int:id>", methods=["POST"])
 @login_required
 def api_croqui_salvar(id):
-    body = request.get_json(force=True)
-    image = body.get("image", "")
-    image_width = body.get("image_width", 0)
-    image_height = body.get("image_height", 0)
-    quadras = body.get("quadras", [])
-    payload = json.dumps({
-        "image": image,
-        "image_width": image_width,
-        "image_height": image_height,
-        "quadras": quadras
-    })
-    with get_db() as conn:
-        conn.execute("UPDATE loteamentos SET croqui_data=? WHERE id=?", (payload, id))
-    return jsonify({"ok": True})
+    try:
+        body = request.get_json(force=True)
+        image = body.get("image", "")
+        image_width = body.get("image_width", 0)
+        image_height = body.get("image_height", 0)
+        quadras = body.get("quadras", [])
+        payload = json.dumps({
+            "image": image,
+            "image_width": image_width,
+            "image_height": image_height,
+            "quadras": quadras
+        })
+        with get_db() as conn:
+            lot = conn.execute("SELECT id FROM loteamentos WHERE id=?", (id,)).fetchone()
+            if not lot:
+                return jsonify({"erro": "Loteamento não encontrado"}), 404
+            conn.execute("UPDATE loteamentos SET croqui_data=? WHERE id=?", (payload, id))
+        return jsonify({"ok": True})
+    except Exception as e:
+        import traceback
+        return jsonify({"erro": f"Erro ao salvar: {str(e)}", "detalhe": traceback.format_exc()}), 500
 
 
 # ─── API MAPA ─────────────────────────────────────────────────

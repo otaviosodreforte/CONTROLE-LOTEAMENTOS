@@ -440,14 +440,17 @@ var CroquiApp = {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
-        }).then(function(r) { return r.json(); }).then(function(data) {
+        }).then(function(r) {
+            if (!r.ok) { return r.text().then(function(t) { throw new Error(t.substring(0,200)); }); }
+            return r.json();
+        }).then(function(data) {
             if (data.ok) {
                 self.setStatus('✅ Dados salvos com sucesso!');
             } else {
                 self.setStatus('❌ Erro ao salvar: ' + (data.erro || 'desconhecido'));
             }
         }).catch(function(err) {
-            self.setStatus('❌ Erro de conexão: ' + err.message);
+            self.setStatus('❌ Erro: ' + err.message);
         });
     },
 
@@ -466,7 +469,10 @@ var CroquiApp = {
         fetch('/api/croqui/upload/' + this.loteamentoId, {
             method: 'POST',
             body: formData
-        }).then(function(r) { return r.json(); }).then(function(data) {
+        }).then(function(r) {
+            if (!r.ok) { return r.text().then(function(t) { throw new Error(t.substring(0,200)); }); }
+            return r.json();
+        }).then(function(data) {
             if (data.ok) {
                 self.setStatus('Imagem enviada!');
                 self.loadImage('/static/croquis/' + data.image);
@@ -476,15 +482,17 @@ var CroquiApp = {
                 self.setStatus('❌ Erro no upload: ' + (data.erro || 'desconhecido'));
             }
         }).catch(function(err) {
-            self.setStatus('❌ Erro de conexão: ' + err.message);
+            self.setStatus('❌ Erro: ' + err.message);
         });
     },
 
     carregarDados: function() {
         var self = this;
         fetch('/api/croqui/dados/' + this.loteamentoId)
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
+            .then(function(r) {
+                if (!r.ok) { return r.text().then(function(t) { throw new Error(t.substring(0,200)); }); }
+                return r.json();
+            }).then(function(data) {
                 if (data.erro) {
                     self.setStatus('Aviso: ' + data.erro);
                     return;
