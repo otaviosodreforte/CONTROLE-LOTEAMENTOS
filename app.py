@@ -97,6 +97,38 @@ def recalcular_lotes_por_quadra(conn, quadra_id):
             updated += 1
         return updated
 
+    if layout == "custom":
+        lots = conn.execute("""
+            SELECT id, numero, COALESCE(tamanho_frente,0) as tf,
+                   COALESCE(tamanho_fundo,0) as tb
+            FROM lotes WHERE quadra_id=? ORDER BY CAST(numero AS INTEGER)
+        """, (quadra_id,)).fetchall()
+        count = len(lots)
+        if count == 0:
+            return 0
+        total_front = sum(r["tf"] for r in lots) or count
+        total_back = sum(r["tb"] for r in lots) or count
+        front_cum = 0.0
+        back_cum = 0.0
+        updated = 0
+        for i, r in enumerate(lots):
+            fw = r["tf"] / total_front
+            bw = r["tb"] / total_back
+            if i == 0:
+                fp = interp(tl, tr, fw)
+                poly = [tl, fp, bl]
+            else:
+                ftl = interp(tl, tr, front_cum)
+                ftr = interp(tl, tr, front_cum + fw)
+                bbl = interp(bl, br, back_cum)
+                bbr = interp(bl, br, back_cum + bw)
+                poly = [ftl, ftr, bbr, bbl]
+            front_cum += fw
+            back_cum += bw
+            conn.execute("UPDATE lotes SET polygon_coords=? WHERE id=?", (json.dumps(poly), r["id"]))
+            updated += 1
+        return updated
+
     cl = interp(tl, bl, 0.5)
     cr = interp(tr, br, 0.5)
     top_count = (count + 1) // 2
