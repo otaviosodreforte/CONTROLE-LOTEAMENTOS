@@ -1379,7 +1379,7 @@ def relatorios_quadras():
                    SUM(CASE WHEN l.status='disponivel' THEN 1 ELSE 0 END) as disponiveis,
                    SUM(CASE WHEN l.status='vendido' THEN 1 ELSE 0 END) as vendidos,
                    SUM(CASE WHEN l.status='permutado' THEN 1 ELSE 0 END) as permutados,
-                   COALESCE(SUM(l.tamanho_frente * l.tamanho_fundo), 0) as area_total
+                   COALESCE(SUM(((l.tamanho_frente + l.tamanho_fundo) / 2.0) * ((l.tamanho_esquerda + l.tamanho_direita) / 2.0)), 0) as area_total
             FROM quadras q
             LEFT JOIN lotes l ON l.quadra_id=q.id
             WHERE q.loteamento_id=?
