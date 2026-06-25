@@ -73,21 +73,21 @@ def recalcular_lotes_por_quadra(conn, quadra_id):
         left_north, left_south = (bl, tl) if bl[0] > tl[0] else (tl, bl)
         right_north, right_south = (br, tr) if br[0] > tr[0] else (tr, br)
         center_north, center_south = (cb, ct) if cb[0] > ct[0] else (ct, cb)
+        slot_count = (count + 1) // 2
         left_count = count // 2
         updated = 0
         for i, row in enumerate(lots):
             if i < left_count:
-                t = i / left_count if left_count > 0 else 0
-                t_next = (i + 1) / left_count if left_count > 0 else 1
+                t = i / slot_count if slot_count > 0 else 0
+                t_next = (i + 1) / slot_count if slot_count > 0 else 1
                 fl = interp(left_north, left_south, t)
                 fr = interp(left_north, left_south, t_next)
                 bc_l = interp(center_north, center_south, t)
                 bc_r = interp(center_north, center_south, t_next)
             else:
                 bi = i - left_count
-                right_count = count - left_count
-                t = bi / right_count if right_count > 0 else 0
-                t_next = (bi + 1) / right_count if right_count > 0 else 1
+                t = bi / slot_count if slot_count > 0 else 0
+                t_next = (bi + 1) / slot_count if slot_count > 0 else 1
                 fl = interp(right_north, right_south, t)
                 fr = interp(right_north, right_south, t_next)
                 bc_l = interp(center_north, center_south, t)
