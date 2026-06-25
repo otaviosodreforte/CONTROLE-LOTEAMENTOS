@@ -155,32 +155,35 @@
         return [[p1nLat, p1nLng], [p2nLat, p2nLng], [p3nLat, p3nLng], [p4nLat, p4nLng]];
     }
 
+    function gerarPoligonoComRef(f, fu, e, d, ref) {
+        if (!ref || ref.length < 4) return false;
+        const nova = gerarPoligonoTrapezio(f, fu, e, d, ref);
+        if (nova) { desenharPoligono(nova); return true; }
+        return false;
+    }
+
+    function buscarRefQuadra(f, fu, e, d) {
+        const qs = document.querySelector("[name=quadra_id]");
+        if (qs && qs.value) {
+            fetch("/api/quadras/" + qs.value + "/polygon").then(function(r) { return r.json(); }).then(function(data) {
+                if (data.polygon_coords) {
+                    var p = JSON.parse(data.polygon_coords);
+                    if (p.length >= 3) gerarPoligonoComRef(f, fu, e, d, p);
+                }
+            }).catch(function(){});
+        }
+    }
+
     function gerarPoligono() {
         const f = parseFloat(document.querySelector("[name=tamanho_frente]")?.value || 0);
         const fu = parseFloat(document.querySelector("[name=tamanho_fundo]")?.value || 0);
         const e = parseFloat(document.querySelector("[name=tamanho_esquerda]")?.value || 0);
         const d = parseFloat(document.querySelector("[name=tamanho_direita]")?.value || 0);
         let ref = null;
-        drawnItems.eachLayer(function(l) { if (l.getLatLngs) ref = l.getLatLngs()[0].map(p => [p.lat, p.lng]); });
-        if ((!ref || ref.length < 4) && coordsIniciais.length >= 4) ref = coordsIniciais;
-        if (!ref || ref.length < 4) {
-            const qs = document.querySelector("[name=quadra_id]");
-            if (qs && qs.value) {
-                fetch("/api/quadras/" + qs.value + "/polygon").then(r => r.json()).then(function(d) {
-                    if (d.polygon_coords) {
-                        const p = JSON.parse(d.polygon_coords);
-                        if (p.length >= 3) {
-                            ref = p;
-                            const nova = gerarPoligonoTrapezio(f, fu, e, d, ref);
-                            if (nova) { desenharPoligono(nova); }
-                        }
-                    }
-                }).catch(function(){});
-            }
-            return;
-        }
-        const nova = gerarPoligonoTrapezio(f, fu, e, d, ref);
-        if (nova) desenharPoligono(nova);
+        drawnItems.eachLayer(function(l) { if (l.getLatLngs) ref = l.getLatLngs()[0].map(function(p) { return [p.lat, p.lng]; }); });
+        if (gerarPoligonoComRef(f, fu, e, d, ref)) return;
+        if (gerarPoligonoComRef(f, fu, e, d, coordsIniciais)) return;
+        buscarRefQuadra(f, fu, e, d);
     }
 
     function desenharPoligono(coords) {
