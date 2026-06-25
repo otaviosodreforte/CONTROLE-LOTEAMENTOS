@@ -85,6 +85,14 @@ def init_db():
             conn.execute("INSERT INTO usuario_loteamentos (usuario_id, loteamento_id) VALUES (?, ?) ON CONFLICT DO NOTHING", (admin["id"], lot["id"]))
         for fp in ("À vista", "Parcelado", "Financiamento", "Permuta"):
             conn.execute("INSERT INTO formas_pagamento (nome) VALUES (?) ON CONFLICT DO NOTHING", (fp,))
+        try:
+            conn.execute("ALTER TABLE lotes ADD COLUMN tamanho_esquerda DOUBLE PRECISION DEFAULT 0")
+        except Exception:
+            pass
+        try:
+            conn.execute("ALTER TABLE lotes ADD COLUMN tamanho_direita DOUBLE PRECISION DEFAULT 0")
+        except Exception:
+            pass
 
 
 init_db()
@@ -519,7 +527,7 @@ def quadras_lista():
     busca = request.args.get("busca", "")
     la = session["loteamento_ativo"]
     with get_db() as conn:
-        sql = "SELECT q.*, l.nome as loteamento_nome FROM quadras q JOIN loteamentos l ON l.id=q.loteamento_id WHERE q.loteamento_id=?"
+        sql = "SELECT q.*, l.nome as loteamento_nome FROM quadras q JOIN loteamentos l ON l.id=q.loteamento_id WHERE q.loteamento_id=? AND q.polygon_coords!='[]' AND q.polygon_coords IS NOT NULL"
         params = [la]
         if busca:
             sql += " AND q.identificacao LIKE ?"
@@ -636,6 +644,8 @@ def lotes_novo():
             numero = request.form.get("numero", "").strip()
             tamanho_frente = request.form.get("tamanho_frente", 0, type=float)
             tamanho_fundo = request.form.get("tamanho_fundo", 0, type=float)
+            tamanho_esquerda = request.form.get("tamanho_esquerda", 0, type=float)
+            tamanho_direita = request.form.get("tamanho_direita", 0, type=float)
             dono_pessoa_id = request.form.get("dono_pessoa_id") or None
             dono_nome = request.form.get("dono_nome", "").strip()
             dono_cpf = re.sub(r"\D", "", request.form.get("dono_cpf", ""))
@@ -649,9 +659,9 @@ def lotes_novo():
                 loteamentos = conn.execute("SELECT * FROM loteamentos WHERE id=?", (la,)).fetchall()
                 return render_template("lotes/form.html", registro=None, quadras=quadras, pessoas=pessoas, loteamentos=loteamentos, erro="Quadra é obrigatória.")
             conn.execute("""
-                INSERT INTO lotes (quadra_id, numero, tamanho_frente, tamanho_fundo, dono_pessoa_id, dono_nome, dono_cpf, dono_contato, polygon_coords)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (quadra_id, numero, tamanho_frente, tamanho_fundo, dono_pessoa_id, dono_nome, dono_cpf, dono_contato, polygon_coords))
+                INSERT INTO lotes (quadra_id, numero, tamanho_frente, tamanho_fundo, tamanho_esquerda, tamanho_direita, dono_pessoa_id, dono_nome, dono_cpf, dono_contato, polygon_coords)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (quadra_id, numero, tamanho_frente, tamanho_fundo, tamanho_esquerda, tamanho_direita, dono_pessoa_id, dono_nome, dono_cpf, dono_contato, polygon_coords))
             return redirect(url_for("lotes_lista"))
         quadras = conn.execute("""SELECT q.*, l.nome as loteamento_nome
                                   FROM quadras q JOIN loteamentos l ON l.id=q.loteamento_id
@@ -672,6 +682,8 @@ def lotes_editar(id):
             numero = request.form.get("numero", "").strip()
             tamanho_frente = request.form.get("tamanho_frente", 0, type=float)
             tamanho_fundo = request.form.get("tamanho_fundo", 0, type=float)
+            tamanho_esquerda = request.form.get("tamanho_esquerda", 0, type=float)
+            tamanho_direita = request.form.get("tamanho_direita", 0, type=float)
             dono_pessoa_id = request.form.get("dono_pessoa_id") or None
             dono_nome = request.form.get("dono_nome", "").strip()
             dono_cpf = re.sub(r"\D", "", request.form.get("dono_cpf", ""))
@@ -680,10 +692,10 @@ def lotes_editar(id):
             status = request.form.get("status", "disponivel")
             polygon_coords = request.form.get("polygon_coords", "[]")
             conn.execute("""
-                UPDATE lotes SET quadra_id=?, numero=?, tamanho_frente=?, tamanho_fundo=?,
+                UPDATE lotes SET quadra_id=?, numero=?, tamanho_frente=?, tamanho_fundo=?, tamanho_esquerda=?, tamanho_direita=?,
                 dono_pessoa_id=?, dono_nome=?, dono_cpf=?, dono_contato=?, lotes_limitrofes=?, status=?, polygon_coords=?
                 WHERE id=?
-            """, (quadra_id, numero, tamanho_frente, tamanho_fundo, dono_pessoa_id, dono_nome, dono_cpf, dono_contato, lotes_limitrofes, status, polygon_coords, id))
+            """, (quadra_id, numero, tamanho_frente, tamanho_fundo, tamanho_esquerda, tamanho_direita, dono_pessoa_id, dono_nome, dono_cpf, dono_contato, lotes_limitrofes, status, polygon_coords, id))
             return redirect(url_for("lotes_lista"))
         reg = conn.execute("""SELECT l.* FROM lotes l
                               JOIN quadras q ON q.id=l.quadra_id
@@ -721,7 +733,7 @@ def api_lotes_geo(loteamento_id):
     with get_db() as conn:
         lotes = conn.execute("""
             SELECT l.id, l.numero, l.polygon_coords, l.status, l.dono_nome,
-                   l.tamanho_frente, l.tamanho_fundo, q.identificacao as quadra_nome
+                   l.tamanho_frente, l.tamanho_fundo, l.tamanho_esquerda, l.tamanho_direita, q.identificacao as quadra_nome
             FROM lotes l JOIN quadras q ON q.id=l.quadra_id
             WHERE q.loteamento_id=?
         """, (loteamento_id,)).fetchall()
@@ -830,11 +842,13 @@ def _gerar_recibo_permuta(conn, permuta_id):
         elements.append(Paragraph(f"<b>Observação:</b> {permuta['observacao']}", styles["Normal"]))
         elements.append(Spacer(1, 6))
     elements.append(Paragraph("<b>Lotes envolvidos:</b>", styles["Heading2"]))
-    data = [["Loteamento", "Quadra", "Lote", "Frente", "Fundo", "Área"]]
+    data = [["Loteamento", "Quadra", "Lote", "Frente", "Fundo", "Esquerda", "Direita", "Área"]]
     for l in lotes:
-        area = (l["tamanho_frente"] or 0) * (l["tamanho_fundo"] or 0)
+        f = l["tamanho_frente"] or 0; fu = l["tamanho_fundo"] or 0
+        e = l["tamanho_esquerda"] or 0; d = l["tamanho_direita"] or 0
+        area = ((f + fu) / 2) * ((e + d) / 2)
         data.append([l["loteamento_nome"], l["quadra_nome"], l["numero"],
-                     f"{l['tamanho_frente']:.2f}", f"{l['tamanho_fundo']:.2f}", f"{area:.2f}"])
+                     f"{f:.2f}", f"{fu:.2f}", f"{e:.2f}", f"{d:.2f}", f"{area:.2f}"])
     t = Table(data)
     t.setStyle(TableStyle([("GRID", (0,0), (-1,-1), 0.5, colors.grey),
                            ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#4a90d9")),
@@ -1003,7 +1017,7 @@ def _gerar_recibo_venda(conn, venda_id):
     from reportlab.lib.styles import getSampleStyleSheet
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
     venda = conn.execute("""
-        SELECT v.*, l.numero as lote_numero, l.tamanho_frente, l.tamanho_fundo,
+        SELECT v.*, l.numero as lote_numero, l.tamanho_frente, l.tamanho_fundo, l.tamanho_esquerda, l.tamanho_direita,
                q.identificacao as quadra_nome, lotea.nome as loteamento_nome,
                fp.nome as forma_pagamento_nome
         FROM vendas v JOIN lotes l ON l.id=v.lote_id
@@ -1021,10 +1035,13 @@ def _gerar_recibo_venda(conn, venda_id):
     elements.append(Paragraph(f"<b>Data:</b> {venda['data']}", styles["Normal"]))
     elements.append(Spacer(1, 6))
     elements.append(Paragraph("<b>Dados do Lote:</b>", styles["Heading2"]))
-    area = (venda["tamanho_frente"] or 0) * (venda["tamanho_fundo"] or 0)
+    f = venda["tamanho_frente"] or 0; fu = venda["tamanho_fundo"] or 0
+    e = venda["tamanho_esquerda"] or 0; d = venda["tamanho_direita"] or 0
+    area = ((f + fu) / 2) * ((e + d) / 2)
     elements.append(Paragraph(f"Loteamento: {venda['loteamento_nome']}", styles["Normal"]))
     elements.append(Paragraph(f"Quadra: {venda['quadra_nome']}", styles["Normal"]))
     elements.append(Paragraph(f"Lote: {venda['lote_numero']}", styles["Normal"]))
+    elements.append(Paragraph(f"Frente: {f:.2f} m | Fundo: {fu:.2f} m | Esquerda: {e:.2f} m | Direita: {d:.2f} m", styles["Normal"]))
     elements.append(Paragraph(f"Área: {area:.2f} m²", styles["Normal"]))
     elements.append(Spacer(1, 6))
     elements.append(Paragraph("<b>Vendedor:</b>", styles["Heading2"]))

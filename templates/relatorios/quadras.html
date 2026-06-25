@@ -28,14 +28,16 @@
     </p>
     {% endif %}
     <table>
-        <thead><tr><th>Lote</th><th>Frente (m)</th><th>Fundo (m)</th><th>Área (m²)</th><th>Status</th><th>Dono</th><th>CPF</th><th>Contato</th></tr></thead>
+        <thead><tr><th>Lote</th><th>Frente (m)</th><th>Fundo (m)</th><th>Esq. (m)</th><th>Dir. (m)</th><th>Área (m²)</th><th>Status</th><th>Dono</th><th>CPF</th><th>Contato</th></tr></thead>
         <tbody>
             {% for l in item.lotes %}
             <tr>
                 <td>{{ l.numero or "—" }}</td>
                 <td>{{ "%.2f"|format(l.tamanho_frente) }}</td>
                 <td>{{ "%.2f"|format(l.tamanho_fundo) }}</td>
-                <td>{{ "%.2f"|format(l.tamanho_frente * l.tamanho_fundo) }}</td>
+                <td>{{ "%.2f"|format(l.tamanho_esquerda) }}</td>
+                <td>{{ "%.2f"|format(l.tamanho_direita) }}</td>
+                <td>{{ "%.2f"|format(((l.tamanho_frente + l.tamanho_fundo)/2) * ((l.tamanho_esquerda + l.tamanho_direita)/2)) }}</td>
                 <td>{{ l.status }}</td>
                 <td>{{ l.dono_nome or "—" }}</td>
                 <td>{{ l.dono_cpf or "—" }}</td>

@@ -23,7 +23,7 @@
 <div style="background:#fff;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.1);margin-bottom:20px;padding:20px;page-break-inside:avoid">
     <h2 style="color:#1a237e;margin-bottom:12px">Lotes como Proprietário ({{ lotes_dono|length }})</h2>
     <table>
-        <thead><tr><th>Quadra</th><th>Lote</th><th>Frente (m)</th><th>Fundo (m)</th><th>Área (m²)</th><th>Status</th></tr></thead>
+        <thead><tr><th>Quadra</th><th>Lote</th><th>Frente (m)</th><th>Fundo (m)</th><th>Esq. (m)</th><th>Dir. (m)</th><th>Área (m²)</th><th>Status</th></tr></thead>
         <tbody>
             {% for l in lotes_dono %}
             <tr>
@@ -31,7 +31,9 @@
                 <td>{{ l.numero or "—" }}</td>
                 <td>{{ "%.2f"|format(l.tamanho_frente) }}</td>
                 <td>{{ "%.2f"|format(l.tamanho_fundo) }}</td>
-                <td>{{ "%.2f"|format(l.tamanho_frente * l.tamanho_fundo) }}</td>
+                <td>{{ "%.2f"|format(l.tamanho_esquerda) }}</td>
+                <td>{{ "%.2f"|format(l.tamanho_direita) }}</td>
+                <td>{{ "%.2f"|format(((l.tamanho_frente + l.tamanho_fundo)/2) * ((l.tamanho_esquerda + l.tamanho_direita)/2)) }}</td>
                 <td>{{ l.status }}</td>
             </tr>
             {% endfor %}

@@ -129,7 +129,9 @@ document.addEventListener("DOMContentLoaded", function() {
                 const coords = JSON.parse(l.polygon_coords || "[]");
                 if (coords.length < 3) return;
                 const cor = coresStatus[l.status] || "#999";
-                const area = (parseFloat(l.tamanho_frente) || 0) * (parseFloat(l.tamanho_fundo) || 0);
+                const f = parseFloat(l.tamanho_frente) || 0, fu = parseFloat(l.tamanho_fundo) || 0;
+                const e = parseFloat(l.tamanho_esquerda) || 0, d = parseFloat(l.tamanho_direita) || 0;
+                const area = ((f + fu) / 2) * ((e + d) / 2);
                 const letra = rotuloLetra(l.quadra_nome);
                 var numLabel = (l.numero || "").replace(/^0+/, "");
                 var refLabel = letra + numLabel;
@@ -138,7 +140,7 @@ document.addEventListener("DOMContentLoaded", function() {
                     color: cor, weight: 2, fillColor: cor, fillOpacity: 0.25,
                     id: l.id, tipo: "lote"
                 }).addTo(loteLayer);
-                poly.bindPopup(`<b>Lote ${l.numero || "—"}</b><br>Quadra: ${l.quadra_nome}<br>${area > 0 ? "Área: " + area.toFixed(2) + " m²<br>" : ""}Status: <strong>${l.status}</strong><br>Dono: ${l.dono_nome || "—"}<br><a href="{{ url_for('lotes_editar', id=0) }}" target="_blank">✏️ Editar lote</a>`.replace("/lotes/editar/0", "/lotes/editar/" + l.id));
+                poly.bindPopup(`<b>Lote ${l.numero || "—"}</b><br>Quadra: ${l.quadra_nome}<br>Frente: ${f.toFixed(2)} m | Fundo: ${fu.toFixed(2)} m<br>Esquerda: ${e.toFixed(2)} m | Direita: ${d.toFixed(2)} m<br>${area > 0 ? "Área: " + area.toFixed(2) + " m²<br>" : ""}Status: <strong>${l.status}</strong><br>Dono: ${l.dono_nome || "—"}<br><a href="{{ url_for('lotes_editar', id=0) }}" target="_blank">✏️ Editar lote</a>`.replace("/lotes/editar/0", "/lotes/editar/" + l.id));
                 poly.on("click", function() { this.openPopup(); });
                 try {
                     var centro = poly.getBounds().getCenter();

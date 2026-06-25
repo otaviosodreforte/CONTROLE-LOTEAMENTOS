@@ -15,10 +15,14 @@
             </select>
             <label>Número do Lote</label>
             <input type="text" name="numero" value="{{ registro.numero if registro else '' }}">
-            <label>Tamanho Frente (m)</label>
+            <label>Frente (m)</label>
             <input type="number" step="0.01" name="tamanho_frente" value="{{ registro.tamanho_frente if registro else 0 }}">
-            <label>Tamanho Fundo (m)</label>
+            <label>Fundo (m)</label>
             <input type="number" step="0.01" name="tamanho_fundo" value="{{ registro.tamanho_fundo if registro else 0 }}">
+            <label>Esquerda (m)</label>
+            <input type="number" step="0.01" name="tamanho_esquerda" value="{{ registro.tamanho_esquerda if registro else 0 }}">
+            <label>Direita (m)</label>
+            <input type="number" step="0.01" name="tamanho_direita" value="{{ registro.tamanho_direita if registro else 0 }}">
             <p style="margin:-10px 0 16px;font-size:13px;color:#666">Área total calculada: <span id="area_calc">0</span> m²</p>
             <label>Dono (Pessoa Cadastrada)</label>
             <select name="dono_pessoa_id" onchange="preencherDadosPessoa(this)">
@@ -68,12 +72,14 @@
         document.getElementById("dono_cpf").value = opt.dataset.cpf || "";
         document.getElementById("dono_contato").value = opt.dataset.contato || "";
     }
-    document.querySelector("[name=tamanho_frente]")?.addEventListener("input", calc);
-    document.querySelector("[name=tamanho_fundo]")?.addEventListener("input", calc);
+    document.querySelectorAll("[name=tamanho_frente], [name=tamanho_fundo], [name=tamanho_esquerda], [name=tamanho_direita]").forEach(el => el?.addEventListener("input", calc));
     function calc() {
         const f = parseFloat(document.querySelector("[name=tamanho_frente]")?.value || 0);
         const fu = parseFloat(document.querySelector("[name=tamanho_fundo]")?.value || 0);
-        document.getElementById("area_calc").textContent = (f * fu).toFixed(2);
+        const e = parseFloat(document.querySelector("[name=tamanho_esquerda]")?.value || 0);
+        const d = parseFloat(document.querySelector("[name=tamanho_direita]")?.value || 0);
+        const area = ((f + fu) / 2) * ((e + d) / 2);
+        document.getElementById("area_calc").textContent = area.toFixed(2);
     }
     calc();
 

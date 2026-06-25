@@ -19,13 +19,14 @@
     </form>
 </div>
 <table>
-    <thead><tr><th>Quadra</th><th>Lote</th><th>Frente</th><th>Fundo</th><th>Área</th><th>Status</th><th>Dono</th><th>Ações</th></tr></thead>
+    <thead><tr><th>Quadra</th><th>Lote</th><th>Frente</th><th>Fundo</th><th>Esquerda</th><th>Direita</th><th>Área</th><th>Status</th><th>Dono</th><th>Ações</th></tr></thead>
     <tbody>
         {% for r in registros %}
         <tr>
             <td>{{ r.quadra_nome }}</td><td>{{ r.numero or "—" }}</td>
             <td>{{ "%.2f"|format(r.tamanho_frente) }}</td><td>{{ "%.2f"|format(r.tamanho_fundo) }}</td>
-            <td>{{ "%.2f"|format(r.tamanho_frente * r.tamanho_fundo) }} m²</td>
+            <td>{{ "%.2f"|format(r.tamanho_esquerda) }}</td><td>{{ "%.2f"|format(r.tamanho_direita) }}</td>
+            <td>{{ "%.2f"|format(((r.tamanho_frente + r.tamanho_fundo)/2) * ((r.tamanho_esquerda + r.tamanho_direita)/2)) }} m²</td>
             <td>{{ r.status }}</td>
             <td>{{ r.dono_nome or "—" }}</td>
             <td class="acoes">
@@ -34,7 +35,7 @@
             </td>
         </tr>
         {% else %}
-        <tr><td colspan="8" class="vazio">Nenhum lote cadastrado neste loteamento.</td></tr>
+        <tr><td colspan="10" class="vazio">Nenhum lote cadastrado neste loteamento.</td></tr>
         {% endfor %}
     </tbody>
 </table>
