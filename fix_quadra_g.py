@@ -30,13 +30,10 @@ print(f"Deleted {cur.rowcount} lots")
 cur.execute("UPDATE quadras SET layout=%s WHERE id=%s", ("vertical", QID))
 print("Set layout=vertical")
 
-# 4. Recreate lots: G01-G08 left, G09-G16 right (same height), G17 full-width bottom
+# 4. Recreate lots: G01-G08 left, G09-G17 right (8+9)
 lotes_data = []
-for i in range(1, 9):
+for i in range(1, 18):
     lotes_data.append((QID, f"{i:02d}", 10, 10, 30, 30))
-for i in range(9, 17):
-    lotes_data.append((QID, f"{i:02d}", 10, 10, 30, 30))
-lotes_data.append((QID, "17", 10, 10, 30, 30))
 
 for qid, num, frente, fundo, esq, dir_ in lotes_data:
     cur.execute("""
