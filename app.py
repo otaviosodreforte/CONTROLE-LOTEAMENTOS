@@ -83,7 +83,7 @@ def inject_globals():
 
 ENDPOINT_MODULO = {}
 for mod, endpoints in [
-    ("loteamento", ["loteamentos_lista", "loteamentos_novo", "loteamentos_editar", "loteamentos_excluir", "loteamentos_mapa", "loteamentos_croqui", "api_lotes_geo"]),
+    ("loteamento", ["loteamentos_lista", "loteamentos_novo", "loteamentos_editar", "loteamentos_excluir",         "loteamentos_mapa", "api_lotes_geo"]),
     ("quadras", ["quadras_lista", "quadras_novo", "quadras_editar", "quadras_excluir"]),
     ("lotes", ["lotes_lista", "lotes_novo", "lotes_editar", "lotes_excluir"]),
     ("permutas", ["permutas_lista", "permutas_novo", "permutas_excluir", "permutas_recibo"]),
@@ -126,10 +126,7 @@ def init_db():
             conn.execute("ALTER TABLE lotes ADD COLUMN tamanho_direita DOUBLE PRECISION DEFAULT 0")
         except Exception as e:
             print(f"[migracao] tamanho_direita ignorado: {e}")
-        try:
-            conn.execute("ALTER TABLE loteamentos ADD COLUMN croqui_data TEXT DEFAULT '{}'")
-        except Exception as e:
-            print(f"[migracao] croqui_data ignorado: {e}")
+
 
 
 init_db()
@@ -278,14 +275,6 @@ def fmt_cpf(val):
     return f"{val[:3]}.{val[3:6]}.{val[6:9]}-{val[9:]}"
 
 
-@app.template_filter("from_json")
-def from_json_filter(val):
-    if not val:
-        return {}
-    try:
-        return json.loads(val)
-    except (ValueError, TypeError):
-        return {}
 
 
 # ─── LOTEAMENTOS ──────────────────────────────────────────────
@@ -386,101 +375,6 @@ def loteamentos_mapa(id):
             WHERE q.loteamento_id=? ORDER BY q.identificacao, l.numero
         """, (id,)).fetchall()
     return render_template("loteamentos/mapa.html", loteamento=loteamento, quadras=quadras, lotes=lotes)
-
-
-# ─── CROQUI ────────────────────────────────────────────────────
-
-CROQUI_DIR = os.path.join(app.static_folder, "croquis")
-os.makedirs(CROQUI_DIR, exist_ok=True)
-
-
-@app.route("/loteamentos/croqui/<int:id>")
-@login_required
-def loteamentos_croqui(id):
-    lids = session.get("loteamentos_ids", [])
-    tem_admin = "loteamentos_admin" in session.get("permissoes", [])
-    if not tem_admin and id not in lids:
-        flash("Acesso negado.")
-        return redirect(url_for("selecionar_loteamento"))
-    session["loteamento_ativo"] = id
-    with get_db() as conn:
-        loteamento = conn.execute("SELECT * FROM loteamentos WHERE id=?", (id,)).fetchone()
-    return render_template("loteamentos/croqui.html", loteamento=loteamento)
-
-
-@app.route("/api/croqui/upload/<int:id>", methods=["POST"])
-@login_required
-def api_croqui_upload(id):
-    try:
-        if "file" not in request.files:
-            return jsonify({"erro": "Nenhum arquivo enviado"}), 400
-        f = request.files["file"]
-        if not f.filename:
-            return jsonify({"erro": "Nome de arquivo vazio"}), 400
-        ext = os.path.splitext(f.filename)[1].lower()
-        if ext not in (".jpg", ".jpeg", ".png", ".gif", ".webp"):
-            return jsonify({"erro": "Formato não suportado. Use JPG, PNG, GIF ou WEBP"}), 400
-        import uuid
-        nome_arquivo = f"{uuid.uuid4().hex}{ext}"
-        os.makedirs(CROQUI_DIR, exist_ok=True)
-        f.save(os.path.join(CROQUI_DIR, nome_arquivo))
-        with get_db() as conn:
-            lot = conn.execute("SELECT * FROM loteamentos WHERE id=?", (id,)).fetchone()
-            if not lot:
-                return jsonify({"erro": "Loteamento não encontrado"}), 404
-            data = lot["croqui_data"] if "croqui_data" in lot.keys() else "{}"
-            cd = json.loads(data or "{}")
-            cd["image"] = nome_arquivo
-            conn.execute("UPDATE loteamentos SET croqui_data=? WHERE id=?", (json.dumps(cd), id))
-        return jsonify({"ok": True, "image": nome_arquivo})
-    except Exception as e:
-        import traceback
-        return jsonify({"erro": f"Erro no upload: {str(e)}", "detalhe": traceback.format_exc()}), 500
-
-
-@app.route("/api/croqui/dados/<int:id>")
-@login_required
-def api_croqui_dados(id):
-    try:
-        with get_db() as conn:
-            lot = conn.execute("SELECT * FROM loteamentos WHERE id=?", (id,)).fetchone()
-            if not lot:
-                return jsonify({"erro": "Loteamento não encontrado"}), 404
-            cd = "{}"
-            try:
-                cd = lot["croqui_data"] if "croqui_data" in lot.keys() else "{}"
-            except (IndexError, KeyError):
-                cd = "{}"
-            return jsonify(json.loads(cd or "{}"))
-    except Exception as e:
-        import traceback
-        return jsonify({"erro": f"Erro ao carregar dados: {str(e)}", "detalhe": traceback.format_exc()}), 500
-
-
-@app.route("/api/croqui/salvar/<int:id>", methods=["POST"])
-@login_required
-def api_croqui_salvar(id):
-    try:
-        body = request.get_json(force=True)
-        image = body.get("image", "")
-        image_width = body.get("image_width", 0)
-        image_height = body.get("image_height", 0)
-        quadras = body.get("quadras", [])
-        payload = json.dumps({
-            "image": image,
-            "image_width": image_width,
-            "image_height": image_height,
-            "quadras": quadras
-        })
-        with get_db() as conn:
-            lot = conn.execute("SELECT id FROM loteamentos WHERE id=?", (id,)).fetchone()
-            if not lot:
-                return jsonify({"erro": "Loteamento não encontrado"}), 404
-            conn.execute("UPDATE loteamentos SET croqui_data=? WHERE id=?", (payload, id))
-        return jsonify({"ok": True})
-    except Exception as e:
-        import traceback
-        return jsonify({"erro": f"Erro ao salvar: {str(e)}", "detalhe": traceback.format_exc()}), 500
 
 
 # ─── API MAPA ─────────────────────────────────────────────────

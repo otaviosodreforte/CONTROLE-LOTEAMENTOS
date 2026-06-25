@@ -118,7 +118,6 @@ def _init_pg(conn):
             qtd_quadras INTEGER DEFAULT 0, qtd_lotes INTEGER DEFAULT 0,
             lat DOUBLE PRECISION, lng DOUBLE PRECISION,
             ativo INTEGER DEFAULT 1,
-            croqui_data TEXT DEFAULT '{}',
             criado_em TIMESTAMP NOT NULL DEFAULT NOW()
         );
         CREATE TABLE IF NOT EXISTS usuario_loteamentos (
@@ -233,7 +232,6 @@ def _init_sqlite(conn):
             qtd_lotes INTEGER DEFAULT 0,
             lat REAL, lng REAL,
             ativo INTEGER DEFAULT 1,
-            croqui_data TEXT DEFAULT '{}',
             criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
         );
         CREATE TABLE IF NOT EXISTS quadras (

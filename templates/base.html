@@ -69,7 +69,6 @@
         <a href="{{ url_for('index') }}" class="nav-link">📊 Dashboard</a>
         {% if loteamento_ativo %}
         <a href="{{ url_for('loteamentos_mapa', id=loteamento_ativo.id) }}" class="nav-link">🗺️ Mapa Interativo</a>
-        <a href="{{ url_for('loteamentos_croqui', id=loteamento_ativo.id) }}" class="nav-link">🖼️ Croqui</a>
         {% endif %}
         <div class="nav-group">
             <div class="nav-title">Cadastro</div>
