@@ -26,6 +26,26 @@
     transform: translate(-50%, -50%);
     z-index: 10000 !important;
 }
+.leaflet-div-icon.leaflet-editing-icon {
+    width: 20px !important;
+    height: 20px !important;
+    margin-left: -10px !important;
+    margin-top: -10px !important;
+    background: #4caf50 !important;
+    border: 3px solid #fff !important;
+    border-radius: 50% !important;
+    box-shadow: 0 0 8px rgba(0,0,0,.6) !important;
+    z-index: 9999 !important;
+}
+.leaflet-div-icon.leaflet-editing-icon:hover {
+    width: 24px !important;
+    height: 24px !important;
+    margin-left: -12px !important;
+    margin-top: -12px !important;
+    background: #66bb6a !important;
+    border-width: 4px !important;
+    box-shadow: 0 0 14px rgba(0,0,0,.8) !important;
+}
 </style>
 <div class="toolbar">
     <h1>🗺️ {{ loteamento.nome if loteamento else "Loteamento" }}</h1>
@@ -73,8 +93,9 @@ document.addEventListener("DOMContentLoaded", function() {
         const pontoLayer = L.featureGroup().addTo(map);
 
         let drawControl = null;
+        let drawnItems = null;
         if (typeof L.Control.Draw !== "undefined") {
-            const drawnItems = L.featureGroup().addTo(map);
+            drawnItems = L.featureGroup().addTo(map);
             drawControl = new L.Control.Draw({
                 edit: { featureGroup: drawnItems },
                 draw: {
@@ -239,6 +260,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
         function quadraMoverClick(e) {
             if (!moverAtivo || moverEditando) return;
+            if (!drawnItems) return;
             var layer = e.target;
             if (layer.options.tipo !== "quadra") return;
             moverEditando = true;
@@ -249,7 +271,6 @@ document.addEventListener("DOMContentLoaded", function() {
                 color: "#ff9800", weight: 3, fillColor: "#ff9800", fillOpacity: 0.15,
                 id: layer.options.id, tipo: "quadra"
             }).addTo(drawnItems);
-            if (drawControl) map.removeControl(drawControl);
             setTimeout(function() {
                 var editBtn = document.querySelector(".leaflet-draw-edit-edit");
                 if (editBtn) editBtn.click();
@@ -260,6 +281,7 @@ document.addEventListener("DOMContentLoaded", function() {
         }
 
         function salvarMover() {
+            if (!drawnItems) return;
             var qid = null;
             var saves = [];
             drawnItems.eachLayer(function(l) {
@@ -298,7 +320,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
         function limparMover() {
             if (moverEditando) {
-                drawnItems.clearLayers();
+                if (drawnItems) drawnItems.clearLayers();
                 if (drawControl) map.addControl(drawControl);
                 moverEditando = false;
                 var btn = document.getElementById("btnMover");
@@ -318,11 +340,11 @@ document.addEventListener("DOMContentLoaded", function() {
             }
             moverAtivo = !moverAtivo;
             if (moverAtivo) {
+                if (editModeAtivo) toggleEditMode();
                 if (rotAtivo) toggleRotacionar();
                 if (pontoAtivo) togglePonto();
                 btn.style.background = "#f44336";
                 btn.textContent = "🔒 Travar";
-                if (drawControl) map.removeControl(drawControl);
                 setTimeout(prepararMover, 100);
             } else {
                 btn.style.background = "#ff9800";
@@ -463,6 +485,7 @@ document.addEventListener("DOMContentLoaded", function() {
             editModeAtivo = !editModeAtivo;
             var btn = document.getElementById("btnEditar");
             if (editModeAtivo) {
+                if (!drawnItems) { editModeAtivo = false; btn.style.background = "#e65100"; btn.textContent = "✏️ Editar"; return; }
                 if (moverAtivo || moverEditando) { limparMover(); moverAtivo = false; var mb = document.getElementById("btnMover"); mb.textContent = "✋ Mover"; mb.style.background = "#ff9800"; if (drawControl) map.addControl(drawControl); }
                 if (rotAtivo) toggleRotacionar();
                 if (pontoAtivo) togglePonto();
@@ -497,6 +520,7 @@ document.addEventListener("DOMContentLoaded", function() {
                 // Salvar quadras e recalcular lotes
                 var quadraIds = [];
                 var saves = [];
+                if (!drawnItems) return;
                 drawnItems.eachLayer(function(l) {
                     if (l.options.tipo !== "quadra") return;
                     var pts = l.getLatLngs()[0].map(function(p) { return [p.lat, p.lng]; });
