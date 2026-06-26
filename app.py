@@ -97,6 +97,57 @@ def recalcular_lotes_por_quadra(conn, quadra_id):
             updated += 1
         return updated
 
+    if layout == "misto":
+        lots = conn.execute("""
+            SELECT id, numero, COALESCE(tamanho_frente,0) as tf,
+                   COALESCE(tamanho_fundo,0) as tb
+            FROM lotes WHERE quadra_id=? ORDER BY CAST(numero AS INTEGER)
+        """, (quadra_id,)).fetchall()
+        count = len(lots)
+        if count < 2:
+            return 0
+        total_front = sum(r["tf"] for r in lots) or count
+        total_back = sum(r["tb"] for r in lots) or count
+        fw1 = lots[0]["tf"] / total_front
+        bw1 = lots[0]["tb"] / total_back
+        fp = interp(tl, tr, fw1)
+        bbp = interp(bl, br, bw1)
+        if lots[0]["tb"] == 0:
+            conn.execute("UPDATE lotes SET polygon_coords=? WHERE id=?", (json.dumps([tl, fp, bl]), lots[0]["id"]))
+        else:
+            conn.execute("UPDATE lotes SET polygon_coords=? WHERE id=?", (json.dumps([tl, fp, bbp, bl]), lots[0]["id"]))
+        rest = lots[1:]
+        if rest:
+            sub_tl, sub_tr = fp, tr
+            sub_bl, sub_br = bbp, br
+            sub_total_front = sum(r["tf"] for r in rest) or len(rest)
+            sub_total_back = sum(r["tb"] for r in rest) or len(rest)
+            front_cum = 0.0
+            back_cum = 0.0
+            for i, r in enumerate(rest):
+                fw = r["tf"] / sub_total_front
+                bw = r["tb"] / sub_total_back
+                if i == 0:
+                    if len(rest) == 1:
+                        poly = [sub_tl, sub_tr, sub_br, sub_bl]
+                    elif r["tb"] == 0:
+                        fp2 = interp(sub_tl, sub_tr, fw)
+                        poly = [sub_tl, fp2, sub_bl]
+                    else:
+                        ftr2 = interp(sub_tl, sub_tr, fw)
+                        bbr2 = interp(sub_bl, sub_br, bw)
+                        poly = [sub_tl, ftr2, bbr2, sub_bl]
+                else:
+                    ftl = interp(sub_tl, sub_tr, front_cum)
+                    ftr = interp(sub_tl, sub_tr, front_cum + fw)
+                    bbl = interp(sub_bl, sub_br, back_cum)
+                    bbr = interp(sub_bl, sub_br, back_cum + bw)
+                    poly = [ftl, ftr, bbr, bbl]
+                front_cum += fw
+                back_cum += bw
+                conn.execute("UPDATE lotes SET polygon_coords=? WHERE id=?", (json.dumps(poly), r["id"]))
+        return count
+
     if layout == "custom":
         lots = conn.execute("""
             SELECT id, numero, COALESCE(tamanho_frente,0) as tf,
