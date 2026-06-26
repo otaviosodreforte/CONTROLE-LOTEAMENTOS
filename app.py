@@ -115,17 +115,24 @@ def recalcular_lotes_por_quadra(conn, quadra_id):
             fw = r["tf"] / total_front
             bw = r["tb"] / total_back
             if i == 0:
-                fp = interp(tl, tr, fw)
-                poly = [tl, fp, bl]
+                if count == 1:
+                    poly = [tl, tr, br, bl]
+                elif r["tb"] == 0:
+                    fp = interp(tl, tr, fw)
+                    poly = [tl, fp, bl]
+                else:
+                    ftr_ = interp(tl, tr, fw)
+                    bbr_ = interp(bl, br, bw)
+                    poly = [tl, ftr_, bbr_, bl]
             else:
                 ftl = interp(tl, tr, front_cum)
                 ftr = interp(tl, tr, front_cum + fw)
                 bbl = interp(bl, br, back_cum)
                 bbr = interp(bl, br, back_cum + bw)
                 poly = [ftl, ftr, bbr, bbl]
+            conn.execute("UPDATE lotes SET polygon_coords=? WHERE id=?", (json.dumps(poly), r["id"]))
             front_cum += fw
             back_cum += bw
-            conn.execute("UPDATE lotes SET polygon_coords=? WHERE id=?", (json.dumps(poly), r["id"]))
             updated += 1
         return updated
 
