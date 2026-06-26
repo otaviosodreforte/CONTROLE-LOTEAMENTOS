@@ -234,67 +234,75 @@ document.addEventListener("DOMContentLoaded", function() {
 
         // ─── Mover Quadra (via marcador arrastavel) ─────────────
         let moverAtivo = false;
-        let moverMarkers = [];
-        let moverLayers = [];
+        let moverMarker = null;
+        let moverLayer = null;
+        var moverOrigCoords = null;
+        var moverCentro = null;
+
+        function quadraMoverClick(e) {
+            if (!moverAtivo) return;
+            var layer = e.target;
+            if (layer.options.tipo !== "quadra") return;
+            if (moverMarker) { map.removeLayer(moverMarker); moverMarker = null; }
+            if (moverLayer) moverLayer.setStyle({ color: "#1565c0", weight: 2, dashArray: "8 6" });
+            moverLayer = layer;
+            moverOrigCoords = layer.getLatLngs()[0].map(function(p) { return [p.lat, p.lng]; });
+            var bounds = layer.getBounds();
+            moverCentro = bounds.getCenter();
+            layer.setStyle({ color: "#ff9800", weight: 4, dashArray: "" });
+            moverMarker = L.marker(moverCentro, {
+                draggable: true,
+                zIndexOffset: 10000,
+                title: "Arraste para mover a quadra"
+            }).addTo(map);
+            moverMarker.bindPopup("Arraste para mover a quadra").openPopup();
+            moverMarker.on("drag", function(e) {
+                var dlat = e.target.getLatLng().lat - moverCentro.lat;
+                var dlng = e.target.getLatLng().lng - moverCentro.lng;
+                var nc = moverOrigCoords.map(function(p) { return [p[0] + dlat, p[1] + dlng]; });
+                moverLayer.setLatLngs([nc]);
+            });
+            moverMarker.on("dragend", function(e) {
+                var dlat = e.target.getLatLng().lat - moverCentro.lat;
+                var dlng = e.target.getLatLng().lng - moverCentro.lng;
+                if (Math.abs(dlat) < 0.000001 && Math.abs(dlng) < 0.000001) return;
+                fetch("/api/quadras/" + moverLayer.options.id + "/mover", {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ dlat: dlat, dlng: dlng })
+                })
+                .then(function(r) { return r.json(); })
+                .then(function() {
+                    mostrarStatus("Quadra movida!", "sucesso");
+                    carregarDados(function() {
+                        renderizarQuadras();
+                        renderizarLotes();
+                        if (moverAtivo) {
+                            quadraLayer.eachLayer(function(l) {
+                                if (l.options.tipo === "quadra") l.on("click", quadraMoverClick);
+                            });
+                        }
+                    });
+                })
+                .catch(function() { mostrarStatus("Erro ao mover", "erro"); });
+            });
+        }
 
         function prepararMover() {
-            moverLayers = [];
-            moverMarkers = [];
             quadraLayer.eachLayer(function(layer) {
                 if (layer.options.tipo !== "quadra") return;
-                moverLayers.push(layer);
                 layer.setStyle({ color: "#ff9800", weight: 4, dashArray: "" });
-                var origCoords = layer.getLatLngs()[0].map(function(p) { return [p.lat, p.lng]; });
-                var bounds = layer.getBounds();
-                var centro = bounds.getCenter();
-                var marker = L.marker(centro, {
-                    draggable: true,
-                    zIndexOffset: 10000,
-                    title: "Arraste para mover a quadra"
-                }).addTo(map);
-                marker.bindPopup("Arraste para mover a quadra").openPopup();
-                marker.qid = layer.options.id;
-                marker.origCoords = origCoords;
-                marker.centro = centro;
-                marker.on("drag", function(e) {
-                    var m = e.target;
-                    var dlat = m.getLatLng().lat - m.centro.lat;
-                    var dlng = m.getLatLng().lng - m.centro.lng;
-                    var nc = m.origCoords.map(function(p) { return [p[0] + dlat, p[1] + dlng]; });
-                    quadraLayer.eachLayer(function(l) {
-                        if (l.options.id === m.qid) l.setLatLngs([nc]);
-                    });
-                });
-                marker.on("dragend", function(e) {
-                    var m = e.target;
-                    var dlat = m.getLatLng().lat - m.centro.lat;
-                    var dlng = m.getLatLng().lng - m.centro.lng;
-                    if (Math.abs(dlat) < 0.000001 && Math.abs(dlng) < 0.000001) return;
-                    fetch("/api/quadras/" + m.qid + "/mover", {
-                        method: "PUT",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ dlat: dlat, dlng: dlng })
-                    })
-                    .then(function(r) { return r.json(); })
-                    .then(function() {
-                        mostrarStatus("Quadra movida!", "sucesso");
-                        carregarDados(function() {
-                            renderizarQuadras();
-                            renderizarLotes();
-                            if (moverAtivo) setTimeout(prepararMover, 50);
-                        });
-                    })
-                    .catch(function() { mostrarStatus("Erro ao mover", "erro"); });
-                });
-                moverMarkers.push(marker);
+                layer.on("click", quadraMoverClick);
             });
         }
 
         function limparMover() {
-            moverMarkers.forEach(function(m) { map.removeLayer(m); });
-            moverMarkers = [];
-            moverLayers.forEach(function(l) { l.setStyle({ color: "#1565c0", weight: 2, dashArray: "8 6" }); });
-            moverLayers = [];
+            if (moverMarker) { map.removeLayer(moverMarker); moverMarker = null; }
+            if (moverLayer) { moverLayer.setStyle({ color: "#1565c0", weight: 2, dashArray: "8 6" }); moverLayer = null; }
+            moverOrigCoords = null; moverCentro = null;
+            quadraLayer.eachLayer(function(l) {
+                if (l.options.tipo === "quadra") l.off("click", quadraMoverClick);
+            });
         }
 
         function limparMover() {
@@ -327,86 +335,93 @@ document.addEventListener("DOMContentLoaded", function() {
 
         // ─── Girar Quadra ───────────────────────────────────────
         var rotAtivo = false;
-        var rotMarkers = [], rotLines = [], rotLayers = [];
+        var rotMarker = null, rotLine = null, rotLayer = null, rotCentro = null;
+        var rotOrigCoords = null, rotAngIni = null;
         var M_LAT = 111000, M_LNG = 108660;
 
+        function quadraRotClick(e) {
+            if (!rotAtivo) return;
+            var layer = e.target;
+            if (layer.options.tipo !== "quadra") return;
+            if (rotMarker) { limparRotSelecao(); }
+            rotLayer = layer;
+            rotOrigCoords = layer.getLatLngs()[0].map(function(p) { return [p.lat, p.lng]; });
+            var bounds = layer.getBounds();
+            rotCentro = bounds.getCenter();
+            layer.setStyle({ color: "#9c27b0", weight: 4, dashArray: "" });
+            var maxDist = 0, farthest = null;
+            rotOrigCoords.forEach(function(p) {
+                var d = map.distance(L.latLng(p[0], p[1]), rotCentro);
+                if (d > maxDist) { maxDist = d; farthest = [p[0], p[1]]; }
+            });
+            if (!farthest) return;
+            rotAngIni = Math.atan2((farthest[1] - rotCentro.lng) * M_LNG, (farthest[0] - rotCentro.lat) * M_LAT);
+            rotMarker = L.marker(farthest, { draggable: true, zIndexOffset: 30000 }).addTo(map);
+            rotMarker.bindPopup("Arraste para girar").openPopup();
+            rotLine = L.polyline([rotCentro, farthest], { color: "#9c27b0", weight: 2, dashArray: "4 4" }).addTo(map);
+            rotMarker.on("drag", function(e) {
+                var pos = e.target.getLatLng();
+                var ang = Math.atan2((pos.lng - rotCentro.lng) * M_LNG, (pos.lat - rotCentro.lat) * M_LAT);
+                var diff = ang - rotAngIni;
+                var cosA = Math.cos(diff), sinA = Math.sin(diff);
+                var nc = rotOrigCoords.map(function(p) {
+                    var dy = (p[0] - rotCentro.lat) * M_LAT;
+                    var dx = (p[1] - rotCentro.lng) * M_LNG;
+                    return [rotCentro.lat + (dx * sinA + dy * cosA) / M_LAT, rotCentro.lng + (dx * cosA - dy * sinA) / M_LNG];
+                });
+                rotLayer.setLatLngs([nc]);
+                rotLine.setLatLngs([rotCentro, pos]);
+            });
+            rotMarker.on("dragend", function(e) {
+                var pos = e.target.getLatLng();
+                var ang = Math.atan2((pos.lng - rotCentro.lng) * M_LNG, (pos.lat - rotCentro.lat) * M_LAT);
+                var diffDeg = (ang - rotAngIni) * 180 / Math.PI;
+                if (Math.abs(diffDeg) < 0.5) return;
+                fetch("/api/quadras/" + rotLayer.options.id + "/rotacionar", {
+                    method: "PUT", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ angulo: diffDeg })
+                })
+                .then(function(r) {
+                    if (!r.ok) throw new Error(r.status + " " + r.statusText);
+                    return r.json();
+                })
+                .then(function(d) {
+                    if (d.erro) throw new Error(d.erro);
+                    mostrarStatus("Quadra rotacionada! " + d.atualizados + " poligonos.", "sucesso");
+                    carregarDados(function() {
+                        renderizarQuadras();
+                        renderizarLotes();
+                        if (rotAtivo) {
+                            quadraLayer.eachLayer(function(l) {
+                                if (l.options.tipo === "quadra") l.on("click", quadraRotClick);
+                            });
+                        }
+                    });
+                })
+                .catch(function(err) { mostrarStatus("Erro: " + err.message, "erro"); });
+            });
+        }
+
+        function limparRotSelecao() {
+            if (rotMarker) { map.removeLayer(rotMarker); rotMarker = null; }
+            if (rotLine) { map.removeLayer(rotLine); rotLine = null; }
+            if (rotLayer) { rotLayer.setStyle({ color: "#1565c0", weight: 2, dashArray: "8 6" }); rotLayer = null; }
+            rotOrigCoords = null; rotCentro = null; rotAngIni = null;
+        }
+
         function prepararRotacionar() {
-            rotLayers = []; rotMarkers = []; rotLines = [];
             quadraLayer.eachLayer(function(layer) {
                 if (layer.options.tipo !== "quadra") return;
-                rotLayers.push(layer);
                 layer.setStyle({ color: "#9c27b0", weight: 4, dashArray: "" });
-                var origCoords = layer.getLatLngs()[0].map(function(p) { return [p.lat, p.lng]; });
-                var bounds = layer.getBounds();
-                var centro = bounds.getCenter();
-                var maxDist = 0, farthest = null;
-                origCoords.forEach(function(p) {
-                    var d = map.distance(L.latLng(p[0], p[1]), centro);
-                    if (d > maxDist) { maxDist = d; farthest = [p[0], p[1]]; }
-                });
-                if (!farthest) return;
-                var angIni = Math.atan2((farthest[1] - centro.lng) * M_LNG, (farthest[0] - centro.lat) * M_LAT);
-                var marker = L.marker(farthest, { draggable: true, zIndexOffset: 30000 }).addTo(map);
-                marker.bindPopup("Arraste para girar").openPopup();
-                var line = L.polyline([centro, farthest], { color: "#9c27b0", weight: 2, dashArray: "4 4" }).addTo(map);
-                marker.qid = layer.options.id;
-                marker.origCoords = origCoords;
-                marker.centro = centro;
-                marker.angIni = angIni;
-                marker.line = line;
-                marker.on("drag", function(e) {
-                    var m = e.target;
-                    var pos = m.getLatLng();
-                    var ang = Math.atan2((pos.lng - m.centro.lng) * M_LNG, (pos.lat - m.centro.lat) * M_LAT);
-                    var diff = ang - m.angIni;
-                    var cosA = Math.cos(diff), sinA = Math.sin(diff);
-                    var nc = m.origCoords.map(function(p) {
-                        var dy = (p[0] - m.centro.lat) * M_LAT;
-                        var dx = (p[1] - m.centro.lng) * M_LNG;
-                        return [m.centro.lat + (dx * sinA + dy * cosA) / M_LAT, m.centro.lng + (dx * cosA - dy * sinA) / M_LNG];
-                    });
-                    quadraLayer.eachLayer(function(l) {
-                        if (l.options.id === m.qid) l.setLatLngs([nc]);
-                    });
-                    m.line.setLatLngs([m.centro, pos]);
-                });
-                marker.on("dragend", function(e) {
-                    var m = e.target;
-                    var pos = m.getLatLng();
-                    var ang = Math.atan2((pos.lng - m.centro.lng) * M_LNG, (pos.lat - m.centro.lat) * M_LAT);
-                    var diffDeg = (ang - m.angIni) * 180 / Math.PI;
-                    if (Math.abs(diffDeg) < 0.5) return;
-                    fetch("/api/quadras/" + m.qid + "/rotacionar", {
-                        method: "PUT", headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ angulo: diffDeg })
-                    })
-                    .then(function(r) {
-                        if (!r.ok) throw new Error(r.status + " " + r.statusText);
-                        return r.json();
-                    })
-                    .then(function(d) {
-                        if (d.erro) throw new Error(d.erro);
-                        mostrarStatus("Quadra rotacionada! " + d.atualizados + " poligonos.", "sucesso");
-                        carregarDados(function() {
-                            renderizarQuadras();
-                            renderizarLotes();
-                            if (rotAtivo) setTimeout(prepararRotacionar, 50);
-                        });
-                    })
-                    .catch(function(err) { mostrarStatus("Erro: " + err.message, "erro"); });
-                });
-                rotMarkers.push(marker);
-                rotLines.push(line);
+                layer.on("click", quadraRotClick);
             });
         }
 
         function limparRotacionar() {
-            rotMarkers.forEach(function(m) { map.removeLayer(m); });
-            rotMarkers = [];
-            rotLines.forEach(function(l) { map.removeLayer(l); });
-            rotLines = [];
-            rotLayers.forEach(function(l) { l.setStyle({ color: "#1565c0", weight: 2, dashArray: "8 6" }); });
-            rotLayers = [];
+            limparRotSelecao();
+            quadraLayer.eachLayer(function(l) {
+                if (l.options.tipo === "quadra") l.off("click", quadraRotClick);
+            });
         }
 
         // ─── Pontos / Marcacoes ──────────────────────────────────
