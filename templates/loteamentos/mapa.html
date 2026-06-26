@@ -232,60 +232,60 @@ document.addEventListener("DOMContentLoaded", function() {
         };
         window.salvarTudo = function() { carregarDados(function() { renderizarQuadras(); renderizarLotes(); }); carregarPontos(); };
 
-        // ─── Mover Quadra (via marcador arrastavel) ─────────────
+        // ─── Mover Quadra (usando Leaflet.Draw edit) ────────────
         let moverAtivo = false;
-        let moverMarker = null;
-        let moverLayer = null;
-        var moverOrigCoords = null;
-        var moverCentro = null;
+        let moverEditando = false;
+        let moverQuadraId = null;
 
         function quadraMoverClick(e) {
-            if (!moverAtivo) return;
+            if (!moverAtivo || moverEditando) return;
             var layer = e.target;
             if (layer.options.tipo !== "quadra") return;
-            if (moverMarker) { map.removeLayer(moverMarker); moverMarker = null; }
-            if (moverLayer) moverLayer.setStyle({ color: "#1565c0", weight: 2, dashArray: "8 6" });
-            moverLayer = layer;
-            moverOrigCoords = layer.getLatLngs()[0].map(function(p) { return [p.lat, p.lng]; });
-            var bounds = layer.getBounds();
-            moverCentro = bounds.getCenter();
-            layer.setStyle({ color: "#ff9800", weight: 4, dashArray: "" });
-            moverMarker = L.marker(moverCentro, {
-                draggable: true,
-                zIndexOffset: 10000,
-                title: "Arraste para mover a quadra"
-            }).addTo(map);
-            moverMarker.bindPopup("Arraste para mover a quadra").openPopup();
-            moverMarker.on("drag", function(e) {
-                var dlat = e.target.getLatLng().lat - moverCentro.lat;
-                var dlng = e.target.getLatLng().lng - moverCentro.lng;
-                var nc = moverOrigCoords.map(function(p) { return [p[0] + dlat, p[1] + dlng]; });
-                moverLayer.setLatLngs([nc]);
+            moverEditando = true;
+            moverQuadraId = layer.options.id;
+            layer.setStyle({ opacity: 0.3, fillOpacity: 0.03 });
+            var pts = layer.getLatLngs()[0].map(function(p) { return [p.lat, p.lng]; });
+            L.polygon(pts, {
+                color: "#ff9800", weight: 3, fillColor: "#ff9800", fillOpacity: 0.15,
+                id: layer.options.id, tipo: "quadra"
+            }).addTo(drawnItems);
+            if (drawControl) map.removeControl(drawControl);
+            setTimeout(function() {
+                var editBtn = document.querySelector(".leaflet-draw-edit-edit");
+                if (editBtn) editBtn.click();
+            }, 100);
+            var btn = document.getElementById("btnMover");
+            btn.textContent = "💾 Salvar";
+            btn.style.background = "#4caf50";
+        }
+
+        function salvarMover() {
+            var qid = null;
+            var saves = [];
+            drawnItems.eachLayer(function(l) {
+                if (l.options.tipo !== "quadra") return;
+                qid = l.options.id;
+                var pts = l.getLatLngs()[0].map(function(p) { return [p.lat, p.lng]; });
+                saves.push(fetch("/api/quadras/" + qid + "/polygon", {
+                    method: "PUT", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ polygon_coords: pts })
+                }));
             });
-            moverMarker.on("dragend", function(e) {
-                var dlat = e.target.getLatLng().lat - moverCentro.lat;
-                var dlng = e.target.getLatLng().lng - moverCentro.lng;
-                if (Math.abs(dlat) < 0.000001 && Math.abs(dlng) < 0.000001) return;
-                fetch("/api/quadras/" + moverLayer.options.id + "/mover", {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ dlat: dlat, dlng: dlng })
-                })
-                .then(function(r) { return r.json(); })
-                .then(function() {
-                    mostrarStatus("Quadra movida!", "sucesso");
-                    carregarDados(function() {
-                        renderizarQuadras();
-                        renderizarLotes();
-                        if (moverAtivo) {
-                            quadraLayer.eachLayer(function(l) {
-                                if (l.options.tipo === "quadra") l.on("click", quadraMoverClick);
-                            });
-                        }
-                    });
-                })
-                .catch(function() { mostrarStatus("Erro ao mover", "erro"); });
+            Promise.all(saves).then(function() {
+                if (qid) return fetch("/api/quadras/" + qid + "/recalcular-lotes", { method: "POST" });
+            }).then(function() {
+                drawnItems.clearLayers();
+                mostrarStatus("Quadra movida!", "sucesso");
+                carregarDados(function() { renderizarQuadras(); renderizarLotes(); });
+            }).catch(function() {
+                mostrarStatus("Erro ao mover", "erro");
+                carregarDados(function() { renderizarQuadras(); renderizarLotes(); });
             });
+            moverEditando = false;
+            if (drawControl) map.addControl(drawControl);
+            var btn = document.getElementById("btnMover");
+            btn.textContent = "✋ Mover";
+            btn.style.background = "#ff9800";
         }
 
         function prepararMover() {
@@ -297,27 +297,26 @@ document.addEventListener("DOMContentLoaded", function() {
         }
 
         function limparMover() {
-            if (moverMarker) { map.removeLayer(moverMarker); moverMarker = null; }
-            if (moverLayer) { moverLayer.setStyle({ color: "#1565c0", weight: 2, dashArray: "8 6" }); moverLayer = null; }
-            moverOrigCoords = null; moverCentro = null;
+            if (moverEditando) {
+                drawnItems.clearLayers();
+                if (drawControl) map.addControl(drawControl);
+                moverEditando = false;
+                var btn = document.getElementById("btnMover");
+                btn.textContent = "✋ Mover";
+                btn.style.background = "#ff9800";
+            }
             quadraLayer.eachLayer(function(l) {
-                if (l.options.tipo === "quadra") l.off("click", quadraMoverClick);
+                if (l.options.tipo === "quadra") { l.off("click", quadraMoverClick); l.setStyle({ color: "#1565c0", weight: 2, dashArray: "8 6" }); }
             });
         }
 
-        function limparMover() {
-            if (moverMarker) { map.removeLayer(moverMarker); moverMarker = null; }
-            if (moverLayer) {
-                moverLayer.setStyle({ color: "#1565c0", weight: 2, dashArray: "8 6" });
-                moverLayer = null;
-            }
-            moverOrigCoords = null;
-            moverCentro = null;
-        }
-
         window.toggleMover = function() {
-            moverAtivo = !moverAtivo;
             var btn = document.getElementById("btnMover");
+            if (moverEditando) {
+                salvarMover();
+                return;
+            }
+            moverAtivo = !moverAtivo;
             if (moverAtivo) {
                 if (rotAtivo) toggleRotacionar();
                 if (pontoAtivo) togglePonto();
@@ -464,7 +463,7 @@ document.addEventListener("DOMContentLoaded", function() {
             editModeAtivo = !editModeAtivo;
             var btn = document.getElementById("btnEditar");
             if (editModeAtivo) {
-                if (moverAtivo) toggleMover();
+                if (moverAtivo || moverEditando) { limparMover(); moverAtivo = false; var mb = document.getElementById("btnMover"); mb.textContent = "✋ Mover"; mb.style.background = "#ff9800"; if (drawControl) map.addControl(drawControl); }
                 if (rotAtivo) toggleRotacionar();
                 if (pontoAtivo) togglePonto();
                 btn.style.background = "#f44336";
@@ -535,7 +534,7 @@ document.addEventListener("DOMContentLoaded", function() {
             pontoAtivo = !pontoAtivo;
             var btn = document.getElementById("btnPonto");
             if (pontoAtivo) {
-                if (moverAtivo) toggleMover();
+                if (moverAtivo || moverEditando) { limparMover(); moverAtivo = false; var mb = document.getElementById("btnMover"); mb.textContent = "✋ Mover"; mb.style.background = "#ff9800"; if (drawControl) map.addControl(drawControl); }
                 if (rotAtivo) toggleRotacionar();
                 btn.style.background = "#f44336";
                 btn.textContent = "🔒 Parar";
@@ -611,7 +610,7 @@ document.addEventListener("DOMContentLoaded", function() {
             rotAtivo = !rotAtivo;
             var btn = document.getElementById("btnRot");
             if (rotAtivo) {
-                if (moverAtivo) toggleMover();
+                if (moverAtivo || moverEditando) { limparMover(); moverAtivo = false; var mb = document.getElementById("btnMover"); mb.textContent = "✋ Mover"; mb.style.background = "#ff9800"; if (drawControl) map.addControl(drawControl); }
                 if (pontoAtivo) togglePonto();
                 btn.style.background = "#f44336";
                 btn.textContent = "🔒 Travar";
